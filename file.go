@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/ProtonMail/gopenpgp/v2/crypto"
@@ -110,34 +111,15 @@ func (protonDrive *ProtonDrive) UploadFileByPath(ctx context.Context, parentLink
 	return protonDrive.uploadFile(ctx, parentLink, filename, info.ModTime(), in)
 }
 
-func (protonDrive *ProtonDrive) uploadFile(ctx context.Context, parentLink *proton.Link, filename string, modTime time.Time, file io.Reader) (*proton.Link, int64, error) {
-	// FIXME: check iOS: optimize for large files -> enc blocks on the fly
-	/*
-		Assumptions:
-		- Upload is always done to the mainShare
-	*/
-	// TODO: check for duplicated filename by using checkAvailableHashes
-
+func (protonDrive *ProtonDrive) createFileUploadDraft(ctx context.Context, parentLink *proton.Link, filename string, modTime time.Time, mimeType string) (*proton.Link, *proton.CreateFileRes, *crypto.SessionKey, *crypto.KeyRing, error) {
 	parentNodeKR, err := protonDrive.getNodeKR(ctx, parentLink)
 	if err != nil {
-		return nil, 0, err
+		return nil, nil, nil, nil, err
 	}
 
-	// detect MIME type
-	fileContent, err := io.ReadAll(file)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	mimetype.SetLimit(0)
-	mType := mimetype.Detect(fileContent)
-	mimeType := mType.String()
-	// log.Println("Detected MIME type", mimeType)
-
-	/* step 1: create a draft */
 	newNodeKey, newNodePassphraseEnc, newNodePassphraseSignature, err := generateNodeKeys(parentNodeKR, protonDrive.AddrKR)
 	if err != nil {
-		return nil, 0, err
+		return nil, nil, nil, nil, err
 	}
 
 	createFileReq := proton.CreateFileReq{
@@ -162,199 +144,223 @@ func (protonDrive *ProtonDrive) uploadFile(ctx context.Context, parentLink *prot
 	/* Name is encrypted using the parent's keyring, and signed with address key */
 	err = createFileReq.SetName(filename, protonDrive.AddrKR, parentNodeKR)
 	if err != nil {
-		return nil, 0, err
+		return nil, nil, nil, nil, err
 	}
 
 	parentHashKey, err := parentLink.GetHashKey(parentNodeKR)
 	if err != nil {
-		return nil, 0, err
+		return nil, nil, nil, nil, err
 	}
 
 	newNodeKR, err := getKeyRing(parentNodeKR, protonDrive.AddrKR, newNodeKey, newNodePassphraseEnc, newNodePassphraseSignature)
 	if err != nil {
-		return nil, 0, err
+		return nil, nil, nil, nil, err
 	}
 
 	err = createFileReq.SetHash(filename, parentHashKey)
 	if err != nil {
-		return nil, 0, err
+		return nil, nil, nil, nil, err
 	}
 
-	err = createFileReq.SetContentKeyPacketAndSignature(newNodeKR, protonDrive.AddrKR)
+	newSessionKey, err := createFileReq.SetContentKeyPacketAndSignature(newNodeKR, protonDrive.AddrKR)
 	if err != nil {
-		return nil, 0, err
+		return nil, nil, nil, nil, err
 	}
 
 	createFileResp, err := protonDrive.c.CreateFile(ctx, protonDrive.MainShare.ShareID, createFileReq)
 	if err != nil {
+		// FIXME: check for duplicated filename by using checkAvailableHashes
+		// FIXME: better error handling
+		// 422: A file or folder with that name already exists (Code=2500, Status=422)
+		if strings.Contains(err.Error(), "(Code=2500, Status=422)") {
+			// file name conflict, file already exists
+			link, err := protonDrive.SearchByNameInFolder(ctx, parentLink, filename, true, false)
+			return link, nil, newSessionKey, newNodeKR, err
+		}
+		// other real error caught
+		return nil, nil, nil, nil, err
+	}
+
+	return nil, &createFileResp, newSessionKey, newNodeKR, nil
+}
+
+func (protonDrive *ProtonDrive) uploadAndCollectBlockData(ctx context.Context, newSessionKey *crypto.SessionKey, newNodeKR *crypto.KeyRing, fileContent []byte, linkID, revisionID string) ([]byte, []proton.BlockToken, error) {
+	// FIXME: handle partial upload (failed midway)
+	// FIXME: get block size
+	blockSize := UPLOAD_BLOCK_SIZE
+	type PendingUploadBlocks struct {
+		blockUploadInfo proton.BlockUploadInfo
+		encData         []byte
+	}
+	blocks := make([]PendingUploadBlocks, 0)
+	manifestSignatureData := make([]byte, 0)
+
+	for i := 0; i*blockSize < len(fileContent); i++ {
+		// encrypt data
+		upperBound := (i + 1) * blockSize
+		if upperBound > len(fileContent) {
+			upperBound = len(fileContent)
+		}
+		data := fileContent[i*blockSize : upperBound]
+
+		dataPlainMessage := crypto.NewPlainMessage(data)
+		encData, err := newSessionKey.Encrypt(dataPlainMessage)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		encSignature, err := protonDrive.AddrKR.SignDetachedEncrypted(dataPlainMessage, newNodeKR)
+		if err != nil {
+			return nil, nil, err
+		}
+		encSignatureStr, err := encSignature.GetArmored()
+		if err != nil {
+			return nil, nil, err
+		}
+
+		h := sha256.New()
+		h.Write(encData)
+		hash := h.Sum(nil)
+		base64Hash := base64.StdEncoding.EncodeToString(hash)
+		if err != nil {
+			return nil, nil, err
+		}
+		manifestSignatureData = append(manifestSignatureData, hash...)
+
+		blocks = append(blocks, PendingUploadBlocks{
+			blockUploadInfo: proton.BlockUploadInfo{
+				Index:        i + 1, // iOS drive: BE starts with 1
+				Size:         int64(len(encData)),
+				EncSignature: encSignatureStr,
+				Hash:         base64Hash,
+			},
+			encData: encData,
+		})
+	}
+
+	blockList := make([]proton.BlockUploadInfo, 0)
+	for i := 0; i < len(blocks); i++ {
+		blockList = append(blockList, blocks[i].blockUploadInfo)
+	}
+	blockTokens := make([]proton.BlockToken, 0)
+	blockUploadReq := proton.BlockUploadReq{
+		AddressID:  protonDrive.MainShare.AddressID,
+		ShareID:    protonDrive.MainShare.ShareID,
+		LinkID:     linkID,
+		RevisionID: revisionID,
+
+		BlockList: blockList,
+	}
+	blockUploadResp, err := protonDrive.c.RequestBlockUpload(ctx, blockUploadReq)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	for i := range blockUploadResp {
+		err := protonDrive.c.UploadBlock(ctx, blockUploadResp[i].BareURL, blockUploadResp[i].Token, bytes.NewReader(blocks[i].encData))
+		if err != nil {
+			return nil, nil, err
+		}
+
+		blockTokens = append(blockTokens, proton.BlockToken{
+			Index: i + 1,
+			Token: blockUploadResp[i].Token,
+		})
+	}
+
+	return manifestSignatureData, blockTokens, nil
+}
+
+func (protonDrive *ProtonDrive) addNewRevision(ctx context.Context, manifestSignatureData []byte, blockTokens []proton.BlockToken, linkID, revisionID string) error {
+	// TODO: check iOS Drive CommitableRevision
+	manifestSignature, err := protonDrive.AddrKR.SignDetached(crypto.NewPlainMessage(manifestSignatureData))
+	if err != nil {
+		return err
+	}
+	manifestSignatureString, err := manifestSignature.GetArmored()
+	if err != nil {
+		return err
+	}
+
+	err = protonDrive.c.UpdateRevision(ctx, protonDrive.MainShare.ShareID, linkID, revisionID, proton.UpdateRevisionReq{
+		BlockList:         blockTokens,
+		State:             proton.RevisionStateActive,
+		ManifestSignature: manifestSignatureString,
+		SignatureAddress:  protonDrive.signatureAddress,
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (protonDrive *ProtonDrive) uploadFile(ctx context.Context, parentLink *proton.Link, filename string, modTime time.Time, file io.Reader) (*proton.Link, int64, error) {
+	// FIXME: check iOS: optimize for large files -> enc blocks on the fly
+	/*
+		Assumptions:
+		- Upload is always done to the mainShare
+	*/
+
+	// detect MIME type
+	fileContent, err := io.ReadAll(file)
+	if err != nil {
 		return nil, 0, err
 	}
 
+	mimetype.SetLimit(0)
+	mType := mimetype.Detect(fileContent)
+	mimeType := mType.String()
+
+	/* step 1: create a draft */
+	link, createFileResp, newSessionKey, newNodeKR, err := protonDrive.createFileUploadDraft(ctx, parentLink, filename, modTime, mimeType)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	linkID := ""
+	revisionID := ""
+
+	if link != nil {
+		linkID = link.LinkID
+		revisionID = ""
+	} else if createFileResp != nil {
+		linkID = createFileResp.ID
+		revisionID = createFileResp.RevisionID
+	} else {
+		// might be the case where the upload failed, since file search will not include file with type draft
+		return nil, 0, ErrInternalErrorOnFileUpload
+	}
+
 	if len(fileContent) == 0 {
-		/* step 2 [Skipped]: upload blocks and collect block data */
-
+		/* step 2: upload blocks and collect block data */
+		// skipped: no block to upload
 		/* step 3: mark the file as active by updating the revision */
-		manifestSignatureData := make([]byte, 0)
-		manifestSignature, err := protonDrive.AddrKR.SignDetached(crypto.NewPlainMessage(manifestSignatureData))
-		if err != nil {
-			return nil, 0, err
-		}
-		manifestSignatureString, err := manifestSignature.GetArmored()
-		if err != nil {
-			return nil, 0, err
-		}
-
-		err = protonDrive.c.UpdateRevision(ctx, protonDrive.MainShare.ShareID, createFileResp.ID, createFileResp.RevisionID, proton.UpdateRevisionReq{
-			BlockList:         make([]proton.BlockToken, 0),
-			State:             proton.RevisionStateActive,
-			ManifestSignature: manifestSignatureString,
-			SignatureAddress:  protonDrive.signatureAddress,
-		})
+		manifestSignature := make([]byte, 0)
+		blockTokens := make([]proton.BlockToken, 0)
+		err = protonDrive.addNewRevision(ctx, manifestSignature, blockTokens, linkID, revisionID)
 		if err != nil {
 			return nil, 0, err
 		}
 	} else {
 		/* step 2: upload blocks and collect block data */
-		// FIXME: handle partial upload (failed midway)
-
-		// FIXME: get block size
-		blockSize := 4 * 1024 * 1024
-		type PendingUploadBlocks struct {
-			blockUploadInfo proton.BlockUploadInfo
-			encData         []byte
-		}
-		blocks := make([]PendingUploadBlocks, 0)
-		manifestSignatureData := make([]byte, 0)
-		sessionKey, err := func() (*crypto.SessionKey, error) {
-			keyPacket := createFileReq.ContentKeyPacket
-			keyPacketByteArr, err := base64.StdEncoding.DecodeString(keyPacket)
-			if err != nil {
-				return nil, err
-			}
-
-			sessionKey, err := newNodeKR.DecryptSessionKey(keyPacketByteArr)
-			if err != nil {
-				return nil, err
-			}
-
-			// FIXME: verify the signature of the session key
-			// signatureString, err := crypto.NewPGPMessageFromArmored(createFileReq.ContentKeyPacketSignature)
-			// if err != nil {
-			// 	return nil, 0,err
-			// }
-
-			// err = protonDrive.AddrKR.VerifyDetachedEncrypted(crypto.NewPlainMessageFromString(sessionKey.GetBase64Key()), signatureString, newNodeKR, crypto.GetUnixTime())
-			// if err != nil {
-			// 	return nil,0, err
-			// }
-
-			return sessionKey, nil
-		}()
+		manifestSignatureData, blockTokens, err := protonDrive.uploadAndCollectBlockData(ctx, newSessionKey, newNodeKR, fileContent, linkID, revisionID)
 		if err != nil {
 			return nil, 0, err
-		}
-
-		for i := 0; i*blockSize < len(fileContent); i++ {
-			// encrypt data
-			upperBound := (i + 1) * blockSize
-			if upperBound > len(fileContent) {
-				upperBound = len(fileContent)
-			}
-			data := fileContent[i*blockSize : upperBound]
-
-			dataPlainMessage := crypto.NewPlainMessage(data)
-			encData, err := sessionKey.Encrypt(dataPlainMessage)
-			if err != nil {
-				return nil, 0, err
-			}
-
-			encSignature, err := protonDrive.AddrKR.SignDetachedEncrypted(dataPlainMessage, newNodeKR)
-			if err != nil {
-				return nil, 0, err
-			}
-			encSignatureStr, err := encSignature.GetArmored()
-			if err != nil {
-				return nil, 0, err
-			}
-
-			h := sha256.New()
-			h.Write(encData)
-			hash := h.Sum(nil)
-			base64Hash := base64.StdEncoding.EncodeToString(hash)
-			if err != nil {
-				return nil, 0, err
-			}
-			manifestSignatureData = append(manifestSignatureData, hash...)
-
-			blocks = append(blocks, PendingUploadBlocks{
-				blockUploadInfo: proton.BlockUploadInfo{
-					Index:        i + 1, // iOS drive: BE starts with 1
-					Size:         int64(len(encData)),
-					EncSignature: encSignatureStr,
-					Hash:         base64Hash,
-				},
-				encData: encData,
-			})
-		}
-
-		blockList := make([]proton.BlockUploadInfo, 0)
-		for i := 0; i < len(blocks); i++ {
-			blockList = append(blockList, blocks[i].blockUploadInfo)
-		}
-		blockTokens := make([]proton.BlockToken, 0)
-		blockUploadReq := proton.BlockUploadReq{
-			AddressID:  protonDrive.MainShare.AddressID,
-			ShareID:    protonDrive.MainShare.ShareID,
-			LinkID:     createFileResp.ID,
-			RevisionID: createFileResp.RevisionID,
-
-			BlockList: blockList,
-		}
-		blockUploadResp, err := protonDrive.c.RequestBlockUpload(ctx, blockUploadReq)
-		if err != nil {
-			return nil, 0, err
-		}
-
-		for i := range blockUploadResp {
-			err := protonDrive.c.UploadBlock(ctx, blockUploadResp[i].BareURL, blockUploadResp[i].Token, bytes.NewReader(blocks[i].encData))
-			if err != nil {
-				return nil, 0, err
-			}
-
-			blockTokens = append(blockTokens, proton.BlockToken{
-				Index: i + 1,
-				Token: blockUploadResp[i].Token,
-			})
 		}
 
 		/* step 3: mark the file as active by updating the revision */
-
-		// TODO: check iOS Drive CommitableRevision
-		manifestSignature, err := protonDrive.AddrKR.SignDetached(crypto.NewPlainMessage(manifestSignatureData))
-		if err != nil {
-			return nil, 0, err
-		}
-		manifestSignatureString, err := manifestSignature.GetArmored()
-		if err != nil {
-			return nil, 0, err
-		}
-
-		err = protonDrive.c.UpdateRevision(ctx, protonDrive.MainShare.ShareID, createFileResp.ID, createFileResp.RevisionID, proton.UpdateRevisionReq{
-			BlockList:         blockTokens,
-			State:             proton.RevisionStateActive,
-			ManifestSignature: manifestSignatureString,
-			SignatureAddress:  protonDrive.signatureAddress,
-		})
+		err = protonDrive.addNewRevision(ctx, manifestSignatureData, blockTokens, linkID, revisionID)
 		if err != nil {
 			return nil, 0, err
 		}
 	}
 
-	link, err := protonDrive.c.GetLink(ctx, protonDrive.MainShare.ShareID, createFileResp.ID)
+	finalLink, err := protonDrive.c.GetLink(ctx, protonDrive.MainShare.ShareID, linkID)
 	if err != nil {
 		return nil, 0, err
 	}
-	return &link, int64(len(fileContent)), nil
+	return &finalLink, int64(len(fileContent)), nil
 }
 
 /*
@@ -369,36 +375,4 @@ Based on the code below, which is taken from the Proton iOS Drive app, we can in
 	- 10 iterations will be done per batch, each iteration's hash will be sent to the server
 	- the server will return available hashes, and the client will take the lowest iteration as the filename to be used
 	- will be used to search for the next available filename (using hashes avoids the filename being known to the server)
-
-private func findNextAvailableName(for file: FileNameCheckerModel, offset: Int, completion: @escaping (Result<NameHashPair, Error>) -> Void) {
-	assert(offset >= 0)
-	let fileName = file.originalName.fileName()
-	let `extension` = file.originalName.fileExtension()
-	var possibleNamesHashPairs = [NameHashPair]()
-
-	let lowerBound = offset + 1
-	let upperBound = offset + step
-
-	for iteration in lowerBound...upperBound {
-		let newName = "\(fileName) (\(iteration))" + (`extension`.isEmpty ? "" : "." + `extension`)
-		guard let newHash = try? hasher(newName, file.parentNodeHashKey) else { continue }
-		possibleNamesHashPairs.append(NameHashPair(name: newName, hash: newHash))
-	}
-
-	hashChecker.checkAvailableHashes(among: possibleNamesHashPairs, onFolder: file.parent) { [weak self] result in
-		guard let self = self else { return }
-
-		switch result {
-		case .failure(let error):
-			completion(.failure(error))
-
-		case .success(let approvedHashes) where approvedHashes.isEmpty:
-			self.findNextAvailableName(for: file, offset: upperBound, completion: completion)
-
-		case .success(let approvedHashes):
-			let approvedPair = possibleNamesHashPairs.first { approvedHashes.contains($0.hash) }!
-			completion(.success(approvedPair))
-		}
-	}
-}
 */
