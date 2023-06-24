@@ -153,7 +153,7 @@ func TestUploadAndDownloadAndDeleteAFileAtRoot(t *testing.T) {
 
 		in := bufio.NewReader(f)
 
-		_, err = protonDrive.UploadFileByReader(ctx, protonDrive.RootLink.LinkID, "integrationTestImage.png", info.ModTime(), in)
+		_, _, err = protonDrive.UploadFileByReader(ctx, protonDrive.RootLink.LinkID, "integrationTestImage.png", info.ModTime(), in)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -263,7 +263,7 @@ func TestUploadAndDeleteAnEmptyFileAtRoot(t *testing.T) {
 
 	{
 		/* Upload a file integrationTestImage.png */
-		_, err := protonDrive.UploadFileByPath(ctx, protonDrive.RootLink, "empty.txt", "testcase/empty.txt")
+		_, _, err := protonDrive.UploadFileByPath(ctx, protonDrive.RootLink, "empty.txt", "testcase/empty.txt")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -378,7 +378,7 @@ func TestUploadAndDownloadAndDeleteAFileAtAFolderOneLevelFromRoot(t *testing.T) 
 		if targetFolderLink == nil {
 			t.Fatalf("Folder tmp not found")
 		}
-		_, err = protonDrive.UploadFileByPath(ctx, targetFolderLink, "integrationTestImage.png", "testcase/integrationTestImage.png")
+		_, _, err = protonDrive.UploadFileByPath(ctx, targetFolderLink, "integrationTestImage.png", "testcase/integrationTestImage.png")
 		if err != nil {
 			t.Fatal(err)
 		}
