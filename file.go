@@ -91,7 +91,7 @@ func (protonDrive *ProtonDrive) UploadFileByReader(ctx context.Context, parentLi
 		return nil, 0, err
 	}
 
-	return protonDrive.uploadFile(ctx, &parentLink, filename, time.Now() /* FIXME */, file)
+	return protonDrive.uploadFile(ctx, &parentLink, filename, modTime, file)
 }
 
 func (protonDrive *ProtonDrive) UploadFileByPath(ctx context.Context, parentLink *proton.Link, filename string, filePath string) (*proton.Link, int64, error) {
@@ -175,7 +175,10 @@ func (protonDrive *ProtonDrive) createFileUploadDraft(ctx context.Context, paren
 		if strings.Contains(err.Error(), "(Code=2500, Status=422)") {
 			// file name conflict, file already exists
 			link, err := protonDrive.SearchByNameInFolder(ctx, parentLink, filename, true, false)
-			return link, nil, newSessionKey, newNodeKR, err
+			if err != nil {
+				return nil, nil, nil, nil, err
+			}
+			return link, nil, nil, nil, nil
 		}
 		// other real error caught
 		return nil, nil, nil, nil, err
@@ -185,6 +188,10 @@ func (protonDrive *ProtonDrive) createFileUploadDraft(ctx context.Context, paren
 }
 
 func (protonDrive *ProtonDrive) uploadAndCollectBlockData(ctx context.Context, newSessionKey *crypto.SessionKey, newNodeKR *crypto.KeyRing, fileContent []byte, linkID, revisionID string) ([]byte, []proton.BlockToken, error) {
+	if newSessionKey == nil || newNodeKR == nil {
+		return nil, nil, ErrMissingInputUploadAndCollectBlockData
+	}
+
 	// FIXME: handle partial upload (failed midway)
 	// FIXME: get block size
 	blockSize := UPLOAD_BLOCK_SIZE
@@ -271,7 +278,7 @@ func (protonDrive *ProtonDrive) uploadAndCollectBlockData(ctx context.Context, n
 	return manifestSignatureData, blockTokens, nil
 }
 
-func (protonDrive *ProtonDrive) addNewRevision(ctx context.Context, manifestSignatureData []byte, blockTokens []proton.BlockToken, linkID, revisionID string) error {
+func (protonDrive *ProtonDrive) commitNewRevision(ctx context.Context, manifestSignatureData []byte, blockTokens []proton.BlockToken, linkID, revisionID string) error {
 	// TODO: check iOS Drive CommitableRevision
 	manifestSignature, err := protonDrive.AddrKR.SignDetached(crypto.NewPlainMessage(manifestSignatureData))
 	if err != nil {
@@ -323,7 +330,28 @@ func (protonDrive *ProtonDrive) uploadFile(ctx context.Context, parentLink *prot
 
 	if link != nil {
 		linkID = link.LinkID
-		revisionID = ""
+
+		// get a new revision
+		newRevision, err := protonDrive.c.CreateRevision(ctx, protonDrive.MainShare.ShareID, linkID)
+		if err != nil {
+			return nil, 0, err
+		}
+
+		revisionID = newRevision.ID
+
+		// get newSessionKey and newNodeKR
+		parentNodeKR, err := protonDrive.getNodeKRByID(ctx, link.ParentLinkID)
+		if err != nil {
+			return nil, 0, err
+		}
+		newNodeKR, err = link.GetKeyRing(parentNodeKR, protonDrive.AddrKR)
+		if err != nil {
+			return nil, 0, err
+		}
+		newSessionKey, err = link.GetSessionKey(protonDrive.AddrKR, newNodeKR)
+		if err != nil {
+			return nil, 0, err
+		}
 	} else if createFileResp != nil {
 		linkID = createFileResp.ID
 		revisionID = createFileResp.RevisionID
@@ -335,10 +363,11 @@ func (protonDrive *ProtonDrive) uploadFile(ctx context.Context, parentLink *prot
 	if len(fileContent) == 0 {
 		/* step 2: upload blocks and collect block data */
 		// skipped: no block to upload
+
 		/* step 3: mark the file as active by updating the revision */
 		manifestSignature := make([]byte, 0)
 		blockTokens := make([]proton.BlockToken, 0)
-		err = protonDrive.addNewRevision(ctx, manifestSignature, blockTokens, linkID, revisionID)
+		err = protonDrive.commitNewRevision(ctx, manifestSignature, blockTokens, linkID, revisionID)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -350,7 +379,7 @@ func (protonDrive *ProtonDrive) uploadFile(ctx context.Context, parentLink *prot
 		}
 
 		/* step 3: mark the file as active by updating the revision */
-		err = protonDrive.addNewRevision(ctx, manifestSignatureData, blockTokens, linkID, revisionID)
+		err = protonDrive.commitNewRevision(ctx, manifestSignatureData, blockTokens, linkID, revisionID)
 		if err != nil {
 			return nil, 0, err
 		}

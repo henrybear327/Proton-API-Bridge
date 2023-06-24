@@ -69,7 +69,8 @@ Currently, the development are split into 2 versions. V1 supports the features [
         - [ ] Handle failed / interrupted upload
         - [x] Modified time
     - [ ] List file metadata 
-- [ ] Duplicated file/folder name handling: 422: A file or folder with that name already exists (Code=2500, Status=422)
+- [x] Duplicated file name handling: 422: A file or folder with that name already exists (Code=2500, Status=422)
+- [ ] Duplicated folder name handling: 422: A file or folder with that name already exists (Code=2500, Status=422)
 - [ ] Handle ERROR RESTY 422: File or folder was not found. (Code=2501, Status=422), Attempt 1
 - [x] Init ProtonDrive with config passed in as Map
 - [x] Remove all `log.Fatalln` and use proper error propagation (basically remove `HandleError` and we go from there)

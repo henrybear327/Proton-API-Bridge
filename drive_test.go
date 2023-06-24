@@ -225,6 +225,111 @@ func TestUploadAndDownloadAndDeleteAFileAtRoot(t *testing.T) {
 	}
 
 	{
+		/* Add a revision */
+		{
+			/* Upload a file integrationTestImage.png */
+			f, err := os.Open("testcase/integrationTestImage.png")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer f.Close()
+
+			info, err := os.Stat("testcase/integrationTestImage.png")
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			in := bufio.NewReader(f)
+
+			_, _, err = protonDrive.UploadFileByReader(ctx, protonDrive.RootLink.LinkID, "integrationTestImage.png", info.ModTime(), in)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			paths := make([]string, 0)
+			err = protonDrive.ListDirectoriesRecursively(ctx, protonDrive.MainShareKR, protonDrive.RootLink, false, -1, 0, true, "", &paths)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if len(paths) != 1 {
+				t.Fatalf("Total path returned is not as expected: %#v", paths)
+			}
+			if paths[0] != "/integrationTestImage.png" {
+				t.Fatalf("Wrong file name decrypted")
+			}
+
+			paths = make([]string, 0)
+			err = protonDrive.ListDirectoriesRecursively(ctx, protonDrive.MainShareKR, protonDrive.RootLink, false, -1, 0, false, "", &paths)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if len(paths) != 2 {
+				t.Fatalf("Total path returned is differs from expected: %#v", paths)
+			}
+			if paths[0] != "/root" {
+				t.Fatalf("Wrong root folder")
+			}
+			if paths[1] != "/root/integrationTestImage.png" {
+				t.Fatalf("Wrong file name decrypted")
+			}
+		}
+
+		{
+			/* Check total revisions */
+			targetFileLink, err := protonDrive.SearchByNameRecursivelyFromRoot(ctx, "integrationTestImage.png", false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if targetFileLink == nil {
+				t.Fatalf("File integrationTestImage.png not found")
+			} else {
+				revisions, err := protonDrive.c.ListRevisions(ctx, protonDrive.MainShare.ShareID, targetFileLink.LinkID)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				if len(revisions) != 2 {
+					t.Fatalf("Missing revision")
+				}
+			}
+		}
+
+		{
+			/* Download a file integrationTestImage.png */
+			targetFileLink, err := protonDrive.SearchByNameRecursivelyFromRoot(ctx, "integrationTestImage.png", false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if targetFileLink == nil {
+				t.Fatalf("File integrationTestImage.png not found")
+			} else {
+				{
+					_, err := protonDrive.SearchByNameInFolder(ctx, targetFileLink, "integrationTestImage.png", true, false)
+					if err != ErrLinkTypeMustToBeFolderType {
+						t.Fatalf("Wrong error message being returned")
+					}
+				}
+
+				downloadedData, err := protonDrive.DownloadFileByID(ctx, targetFileLink.LinkID)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				originalData, err := os.ReadFile("testcase/integrationTestImage.png")
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				if bytes.Equal(downloadedData, originalData) == false {
+					t.Fatalf("Downloaded content is different from the original content")
+				}
+			}
+		}
+	}
+
+	{
 		/* Delete a file integrationTestImage.png */
 		targetFileLink, err := protonDrive.SearchByNameRecursivelyFromRoot(ctx, "integrationTestImage.png", false)
 		if err != nil {
@@ -325,6 +430,91 @@ func TestUploadAndDeleteAnEmptyFileAtRoot(t *testing.T) {
 
 	{
 		/* TODO: Check file metadata */
+	}
+
+	{
+		/* Add a revision */
+		{
+			/* Upload a file integrationTestImage.png */
+			_, _, err := protonDrive.UploadFileByPath(ctx, protonDrive.RootLink, "empty.txt", "testcase/empty.txt")
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			paths := make([]string, 0)
+			err = protonDrive.ListDirectoriesRecursively(ctx, protonDrive.MainShareKR, protonDrive.RootLink, false, -1, 0, true, "", &paths)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if len(paths) != 1 {
+				t.Fatalf("Total path returned is differs from expected: %#v", paths)
+			}
+			if paths[0] != "/empty.txt" {
+				t.Fatalf("Wrong file name decrypted")
+			}
+
+			paths = make([]string, 0)
+			err = protonDrive.ListDirectoriesRecursively(ctx, protonDrive.MainShareKR, protonDrive.RootLink, false, -1, 0, false, "", &paths)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if len(paths) != 2 {
+				t.Fatalf("Total path returned is differs from expected: %#v", paths)
+			}
+			if paths[0] != "/root" {
+				t.Fatalf("Wrong root folder")
+			}
+			if paths[1] != "/root/empty.txt" {
+				t.Fatalf("Wrong file name decrypted")
+			}
+		}
+
+		{
+			/* Check total revisions */
+			targetFileLink, err := protonDrive.SearchByNameRecursivelyFromRoot(ctx, "empty.txt", false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if targetFileLink == nil {
+				t.Fatalf("File empty.txt not found")
+			} else {
+				revisions, err := protonDrive.c.ListRevisions(ctx, protonDrive.MainShare.ShareID, targetFileLink.LinkID)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				if len(revisions) != 2 {
+					t.Fatalf("Missing revision")
+				}
+			}
+		}
+
+		{
+			/* Download a file empty.txt */
+			targetFileLink, err := protonDrive.SearchByNameRecursivelyFromRoot(ctx, "empty.txt", false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if targetFileLink == nil {
+				t.Fatalf("File empty.txt not found")
+			} else {
+				downloadedData, err := protonDrive.DownloadFileByID(ctx, targetFileLink.LinkID)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				originalData, err := os.ReadFile("testcase/empty.txt")
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				if bytes.Equal(downloadedData, originalData) == false {
+					t.Fatalf("Downloaded content is different from the original content")
+				}
+			}
+		}
 	}
 
 	{
