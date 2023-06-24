@@ -5,7 +5,7 @@ go 1.18
 require (
 	github.com/ProtonMail/gopenpgp/v2 v2.7.1
 	github.com/gabriel-vasile/mimetype v1.4.2
-	github.com/henrybear327/go-proton-api v0.0.0-20230623063450-66171214ea8c
+	github.com/henrybear327/go-proton-api v0.0.0-20230624205832-9f118eb6e3d7
 )
 
 require (
