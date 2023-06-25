@@ -10,4 +10,5 @@ var (
 	ErrFolderIsNotEmpty                      = errors.New("folder can't be deleted becuase it is not empty")
 	ErrInternalErrorOnFileUpload             = errors.New("either link or createFileResp must be not nil")
 	ErrMissingInputUploadAndCollectBlockData = errors.New("missing either session key or key ring")
+	ErrLinkMustNotBeNil                      = errors.New("Missing input proton link")
 )

@@ -204,9 +204,18 @@ func TestUploadAndDownloadAndDeleteAFileAtRoot(t *testing.T) {
 				}
 			}
 
-			downloadedData, err := protonDrive.DownloadFileByID(ctx, targetFileLink.LinkID)
+			downloadedData, fileSystemAttr, err := protonDrive.DownloadFileByID(ctx, targetFileLink.LinkID)
 			if err != nil {
 				t.Fatal(err)
+			}
+
+			/* Check file metadata */
+			if fileSystemAttr == nil {
+				t.Fatalf("FileSystemAttr should not be nil")
+			} else {
+				if len(downloadedData) != int(fileSystemAttr.Size) {
+					t.Fatalf("Downloaded file size != uploaded file size: %#v", fileSystemAttr)
+				}
 			}
 
 			originalData, err := os.ReadFile("testcase/integrationTestImage.png")
@@ -218,10 +227,6 @@ func TestUploadAndDownloadAndDeleteAFileAtRoot(t *testing.T) {
 				t.Fatalf("Downloaded content is different from the original content")
 			}
 		}
-	}
-
-	{
-		/* TODO: Check file metadata */
 	}
 
 	{
@@ -312,9 +317,18 @@ func TestUploadAndDownloadAndDeleteAFileAtRoot(t *testing.T) {
 					}
 				}
 
-				downloadedData, err := protonDrive.DownloadFileByID(ctx, targetFileLink.LinkID)
+				downloadedData, fileSystemAttr, err := protonDrive.DownloadFileByID(ctx, targetFileLink.LinkID)
 				if err != nil {
 					t.Fatal(err)
+				}
+
+				/* Check file metadata */
+				if fileSystemAttr == nil {
+					t.Fatalf("FileSystemAttr should not be nil")
+				} else {
+					if len(downloadedData) != int(fileSystemAttr.Size) {
+						t.Fatalf("Downloaded file size != uploaded file size: %#v", fileSystemAttr)
+					}
 				}
 
 				originalData, err := os.ReadFile("testcase/integrationTestImage.png")
@@ -412,9 +426,18 @@ func TestUploadAndDeleteAnEmptyFileAtRoot(t *testing.T) {
 		if targetFileLink == nil {
 			t.Fatalf("File empty.txt not found")
 		} else {
-			downloadedData, err := protonDrive.DownloadFileByID(ctx, targetFileLink.LinkID)
+			downloadedData, fileSystemAttr, err := protonDrive.DownloadFileByID(ctx, targetFileLink.LinkID)
 			if err != nil {
 				t.Fatal(err)
+			}
+
+			/* Check file metadata */
+			if fileSystemAttr == nil {
+				t.Fatalf("FileSystemAttr should not be nil")
+			} else {
+				if len(downloadedData) != int(fileSystemAttr.Size) {
+					t.Fatalf("Downloaded file size != uploaded file size: %#v", fileSystemAttr)
+				}
 			}
 
 			originalData, err := os.ReadFile("testcase/empty.txt")
@@ -426,10 +449,6 @@ func TestUploadAndDeleteAnEmptyFileAtRoot(t *testing.T) {
 				t.Fatalf("Downloaded content is different from the original content")
 			}
 		}
-	}
-
-	{
-		/* TODO: Check file metadata */
 	}
 
 	{
@@ -500,9 +519,18 @@ func TestUploadAndDeleteAnEmptyFileAtRoot(t *testing.T) {
 			if targetFileLink == nil {
 				t.Fatalf("File empty.txt not found")
 			} else {
-				downloadedData, err := protonDrive.DownloadFileByID(ctx, targetFileLink.LinkID)
+				downloadedData, fileSystemAttr, err := protonDrive.DownloadFileByID(ctx, targetFileLink.LinkID)
 				if err != nil {
 					t.Fatal(err)
+				}
+
+				/* Check file metadata */
+				if fileSystemAttr == nil {
+					t.Fatalf("FileSystemAttr should not be nil")
+				} else {
+					if len(downloadedData) != int(fileSystemAttr.Size) {
+						t.Fatalf("Downloaded file size != uploaded file size: %#v", fileSystemAttr)
+					}
 				}
 
 				originalData, err := os.ReadFile("testcase/empty.txt")
@@ -647,9 +675,18 @@ func TestUploadAndDownloadAndDeleteAFileAtAFolderOneLevelFromRoot(t *testing.T) 
 		if targetFileLink == nil {
 			t.Fatalf("File integrationTestImage.png not found")
 		} else {
-			downloadedData, err := protonDrive.DownloadFile(ctx, targetFileLink)
+			downloadedData, fileSystemAttr, err := protonDrive.DownloadFile(ctx, targetFileLink)
 			if err != nil {
 				t.Fatal(err)
+			}
+
+			/* Check file metadata */
+			if fileSystemAttr == nil {
+				t.Fatalf("FileSystemAttr should not be nil")
+			} else {
+				if len(downloadedData) != int(fileSystemAttr.Size) {
+					t.Fatalf("Downloaded file size != uploaded file size: %#v", fileSystemAttr)
+				}
 			}
 
 			originalData, err := os.ReadFile("testcase/integrationTestImage.png")
@@ -661,10 +698,6 @@ func TestUploadAndDownloadAndDeleteAFileAtAFolderOneLevelFromRoot(t *testing.T) 
 				t.Fatalf("Downloaded content is different from the original content")
 			}
 		}
-	}
-
-	{
-		/* TODO: Check file metadata */
 	}
 
 	{

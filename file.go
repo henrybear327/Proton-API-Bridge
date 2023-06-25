@@ -14,37 +14,24 @@ import (
 	"github.com/ProtonMail/gopenpgp/v2/crypto"
 	"github.com/gabriel-vasile/mimetype"
 	"github.com/henrybear327/go-proton-api"
+	"github.com/relvacode/iso8601"
 )
 
-func (protonDrive *ProtonDrive) DownloadFileByID(ctx context.Context, linkID string) ([]byte, error) {
+type FileSystemAttrs struct {
+	ModificationTime time.Time
+	Size             int64
+}
+
+func (protonDrive *ProtonDrive) DownloadFileByID(ctx context.Context, linkID string) ([]byte, *FileSystemAttrs, error) {
 	link, err := protonDrive.c.GetLink(ctx, protonDrive.MainShare.ShareID, linkID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	return protonDrive.DownloadFile(ctx, &link)
 }
 
-func (protonDrive *ProtonDrive) DownloadFile(ctx context.Context, link *proton.Link) ([]byte, error) {
-	if link.Type != proton.LinkTypeFile {
-		return nil, ErrLinkTypeMustToBeFileType
-	}
-
-	parentNodeKR, err := protonDrive.getNodeKRByID(ctx, link.ParentLinkID)
-	if err != nil {
-		return nil, err
-	}
-
-	nodeKR, err := link.GetKeyRing(parentNodeKR, protonDrive.AddrKR)
-	if err != nil {
-		return nil, err
-	}
-
-	sessionKey, err := link.GetSessionKey(protonDrive.AddrKR, nodeKR)
-	if err != nil {
-		return nil, err
-	}
-
+func (protonDrive *ProtonDrive) GetActiveRevision(ctx context.Context, link *proton.Link) (*proton.Revision, error) {
 	revisions, err := protonDrive.c.ListRevisions(ctx, protonDrive.MainShare.ShareID, link.LinkID)
 	if err != nil {
 		return nil, err
@@ -62,27 +49,90 @@ func (protonDrive *ProtonDrive) DownloadFile(ctx context.Context, link *proton.L
 
 	// FIXME: compute total blocks required
 	// TODO: handle large file downloading
+	// FIXME: total block calculation: how?
 	revision, err := protonDrive.c.GetRevision(ctx, protonDrive.MainShare.ShareID, link.LinkID, revisions[activeRevision].ID, 1, 50)
 	if err != nil {
 		return nil, err
 	}
 
+	return &revision, nil
+}
+
+func (protonDrive *ProtonDrive) GetActiveRevisionWithAttrs(ctx context.Context, link *proton.Link) (*proton.Revision, *FileSystemAttrs, error) {
+	if link == nil {
+		return nil, nil, ErrLinkMustNotBeNil
+	}
+
+	revision, err := protonDrive.GetActiveRevision(ctx, link)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	nodeKR, err := protonDrive.getNodeKR(ctx, link)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	revisionXAttrCommon, err := revision.GetDecXAttrString(protonDrive.AddrKR, nodeKR)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	modificationTime, err := iso8601.ParseString(revisionXAttrCommon.ModificationTime)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return revision, &FileSystemAttrs{
+		ModificationTime: modificationTime,
+		Size:             revisionXAttrCommon.Size,
+	}, nil
+}
+
+func (protonDrive *ProtonDrive) DownloadFile(ctx context.Context, link *proton.Link) ([]byte, *FileSystemAttrs, error) {
+	if link.Type != proton.LinkTypeFile {
+		return nil, nil, ErrLinkTypeMustToBeFileType
+	}
+
+	parentNodeKR, err := protonDrive.getNodeKRByID(ctx, link.ParentLinkID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	nodeKR, err := link.GetKeyRing(parentNodeKR, protonDrive.AddrKR)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	sessionKey, err := link.GetSessionKey(protonDrive.AddrKR, nodeKR)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	revision, fileSystemAttrs, err := protonDrive.GetActiveRevisionWithAttrs(ctx, link)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	buffer := bytes.NewBuffer(nil)
 	for i := range revision.Blocks {
-		// parallel download
+		// TODO: parallel download
 		blockReader, err := protonDrive.c.GetBlock(ctx, revision.Blocks[i].BareURL, revision.Blocks[i].Token)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		defer blockReader.Close()
 
 		err = decryptBlockIntoBuffer(sessionKey, protonDrive.AddrKR, nodeKR, revision.Blocks[i].EncSignature, buffer, blockReader)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 
-	return buffer.Bytes(), nil
+	if fileSystemAttrs != nil {
+		return buffer.Bytes(), fileSystemAttrs, nil
+	}
+	return buffer.Bytes(), nil, nil
 }
 
 func (protonDrive *ProtonDrive) UploadFileByReader(ctx context.Context, parentLinkID string, filename string, modTime time.Time, file io.Reader) (*proton.Link, int64, error) {
@@ -135,8 +185,6 @@ func (protonDrive *ProtonDrive) createFileUploadDraft(ctx context.Context, paren
 		NodeKey:                 newNodeKey,                 // The private NodeKey, used to decrypt any file/folder content.
 		NodePassphrase:          newNodePassphraseEnc,       // The passphrase used to unlock the NodeKey, encrypted by the owning Link/Share keyring.
 		NodePassphraseSignature: newNodePassphraseSignature, // The signature of the NodePassphrase
-
-		ModifyTime: modTime.Unix(), // The modified time
 
 		SignatureAddress: protonDrive.signatureAddress, // Signature email address used to sign passphrase and name
 	}
@@ -278,7 +326,7 @@ func (protonDrive *ProtonDrive) uploadAndCollectBlockData(ctx context.Context, n
 	return manifestSignatureData, blockTokens, nil
 }
 
-func (protonDrive *ProtonDrive) commitNewRevision(ctx context.Context, manifestSignatureData []byte, blockTokens []proton.BlockToken, linkID, revisionID string) error {
+func (protonDrive *ProtonDrive) commitNewRevision(ctx context.Context, nodeKR *crypto.KeyRing, modificationTime time.Time, size int64, manifestSignatureData []byte, blockTokens []proton.BlockToken, linkID, revisionID string) error {
 	// TODO: check iOS Drive CommitableRevision
 	manifestSignature, err := protonDrive.AddrKR.SignDetached(crypto.NewPlainMessage(manifestSignatureData))
 	if err != nil {
@@ -289,12 +337,18 @@ func (protonDrive *ProtonDrive) commitNewRevision(ctx context.Context, manifestS
 		return err
 	}
 
-	err = protonDrive.c.UpdateRevision(ctx, protonDrive.MainShare.ShareID, linkID, revisionID, proton.UpdateRevisionReq{
+	updateRevisionReq := proton.UpdateRevisionReq{
 		BlockList:         blockTokens,
 		State:             proton.RevisionStateActive,
 		ManifestSignature: manifestSignatureString,
 		SignatureAddress:  protonDrive.signatureAddress,
-	})
+	}
+	err = updateRevisionReq.SetEncXAttrString(protonDrive.AddrKR, nodeKR, modificationTime, size)
+	if err != nil {
+		return err
+	}
+
+	err = protonDrive.c.UpdateRevision(ctx, protonDrive.MainShare.ShareID, linkID, revisionID, updateRevisionReq)
 	if err != nil {
 		return err
 	}
@@ -304,16 +358,14 @@ func (protonDrive *ProtonDrive) commitNewRevision(ctx context.Context, manifestS
 
 func (protonDrive *ProtonDrive) uploadFile(ctx context.Context, parentLink *proton.Link, filename string, modTime time.Time, file io.Reader) (*proton.Link, int64, error) {
 	// FIXME: check iOS: optimize for large files -> enc blocks on the fly
-	/*
-		Assumptions:
-		- Upload is always done to the mainShare
-	*/
+	// main issue lies in the mimetype detection, since a full readout is used
 
 	// detect MIME type
 	fileContent, err := io.ReadAll(file)
 	if err != nil {
 		return nil, 0, err
 	}
+	fileSize := int64(len(fileContent))
 
 	mimetype.SetLimit(0)
 	mType := mimetype.Detect(fileContent)
@@ -360,14 +412,14 @@ func (protonDrive *ProtonDrive) uploadFile(ctx context.Context, parentLink *prot
 		return nil, 0, ErrInternalErrorOnFileUpload
 	}
 
-	if len(fileContent) == 0 {
+	if fileSize == 0 {
 		/* step 2: upload blocks and collect block data */
 		// skipped: no block to upload
 
 		/* step 3: mark the file as active by updating the revision */
 		manifestSignature := make([]byte, 0)
 		blockTokens := make([]proton.BlockToken, 0)
-		err = protonDrive.commitNewRevision(ctx, manifestSignature, blockTokens, linkID, revisionID)
+		err = protonDrive.commitNewRevision(ctx, newNodeKR, modTime, fileSize, manifestSignature, blockTokens, linkID, revisionID)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -379,7 +431,7 @@ func (protonDrive *ProtonDrive) uploadFile(ctx context.Context, parentLink *prot
 		}
 
 		/* step 3: mark the file as active by updating the revision */
-		err = protonDrive.commitNewRevision(ctx, manifestSignatureData, blockTokens, linkID, revisionID)
+		err = protonDrive.commitNewRevision(ctx, newNodeKR, modTime, fileSize, manifestSignatureData, blockTokens, linkID, revisionID)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -389,7 +441,7 @@ func (protonDrive *ProtonDrive) uploadFile(ctx context.Context, parentLink *prot
 	if err != nil {
 		return nil, 0, err
 	}
-	return &finalLink, int64(len(fileContent)), nil
+	return &finalLink, fileSize, nil
 }
 
 /*
