@@ -71,7 +71,6 @@ func (protonDrive *ProtonDrive) searchByNameRecursively(
 	/*
 		Assumptions:
 		- we only care about the active ones
-		- we only operate on the mainShare
 	*/
 	if link.State != proton.LinkStateActive {
 		return nil, nil

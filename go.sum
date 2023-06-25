@@ -50,8 +50,8 @@ github.com/go-resty/resty/v2 v2.7.0/go.mod h1:9PWDzw47qPphMRFfhsyk0NnSgvluHcljSM
 github.com/goccy/go-json v0.10.2 h1:CrxCmQqYDkv1z7lO7Wbh2HN93uovUHgrECaO5ZrCXAU=
 github.com/google/uuid v1.3.0 h1:t6JiXgmwXMjEs8VusXIJk2BXHsn+wx8BZdTaoZ5fu7I=
 github.com/google/uuid v1.3.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
-github.com/henrybear327/go-proton-api v0.0.0-20230625131540-901687170a11 h1:TQa3nY/xSJMfgI2f194W3uoeQDKjlv3lMdnO87ph3Q0=
-github.com/henrybear327/go-proton-api v0.0.0-20230625131540-901687170a11/go.mod h1:l42xBSOrCmkAxzWUHcoUsG/cP8m1hMhV72GoChOX3bg=
+github.com/henrybear327/go-proton-api v0.0.0-20230625145921-688669bde6a8 h1:qTru+jZOL4gR2A1rPI+1D6W9PFPqyK+PK55NneH8H/s=
+github.com/henrybear327/go-proton-api v0.0.0-20230625145921-688669bde6a8/go.mod h1:l42xBSOrCmkAxzWUHcoUsG/cP8m1hMhV72GoChOX3bg=
 github.com/json-iterator/go v1.1.12 h1:PV8peI4a0ysnczrg+LtxykD8LfKY9ML6u2jnxaEnrnM=
 github.com/klauspost/cpuid/v2 v2.2.4 h1:acbojRNwl3o09bUq+yDCtZFc1aiwaAAxtcn8YkZXnvk=
 github.com/leodido/go-urn v1.2.4 h1:XlAE/cm/ms7TE/VMVoduSpNBoyc2dOxHs5MZSwAN63Q=

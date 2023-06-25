@@ -7,10 +7,6 @@ import (
 )
 
 func (protonDrive *ProtonDrive) moveToTrash(ctx context.Context, parentLinkID string, linkIDs ...string) error {
-	/*
-		Assumption:
-		- only operates on main share
-	*/
 	err := protonDrive.c.TrashChildren(ctx, protonDrive.MainShare.ShareID, parentLinkID, linkIDs...)
 	if err != nil {
 		return err

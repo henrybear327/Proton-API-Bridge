@@ -72,6 +72,43 @@ func generateNodeKeys(kr, addrKR *crypto.KeyRing) (string, string, string, error
 	return nodeKey, nodePassphraseEnc, nodePassphraseSignature, nil
 }
 
+func updateNodeKeys(origKR, newKR, addrKR *crypto.KeyRing, passphrase, passphraseSignature string) (string, string, error) {
+	passphrase, err := getPassphrase(origKR, addrKR, passphrase, passphraseSignature)
+	if err != nil {
+		return "", "", err
+	}
+
+	nodePassphraseEnc, nodePassphraseSignature, err := encryptWithSignature(newKR, addrKR, []byte(passphrase))
+	if err != nil {
+		return "", "", err
+	}
+
+	return nodePassphraseEnc, nodePassphraseSignature, nil
+}
+
+func getPassphrase(kr, addrKR *crypto.KeyRing, passphrase, passphraseSignature string) (string, error) {
+	enc, err := crypto.NewPGPMessageFromArmored(passphrase)
+	if err != nil {
+		return "", err
+	}
+
+	dec, err := kr.Decrypt(enc, nil, crypto.GetUnixTime())
+	if err != nil {
+		return "", err
+	}
+
+	sig, err := crypto.NewPGPSignatureFromArmored(passphraseSignature)
+	if err != nil {
+		return "", err
+	}
+
+	if err := addrKR.VerifyDetached(dec, sig, crypto.GetUnixTime()); err != nil {
+		return "", err
+	}
+
+	return sig.GetArmored()
+}
+
 func getKeyRing(kr, addrKR *crypto.KeyRing, key, passphrase, passphraseSignature string) (*crypto.KeyRing, error) {
 	enc, err := crypto.NewPGPMessageFromArmored(passphrase)
 	if err != nil {

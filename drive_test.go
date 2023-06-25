@@ -762,9 +762,174 @@ func TestUploadAndDownloadAndDeleteAFileAtAFolderOneLevelFromRoot(t *testing.T) 
 	}
 }
 
-/*
-	TODO
-	- Revision
-	- Rename
-	- Move
-*/
+func TestCreateAndMoveAndDeleteFolderAtRoot(t *testing.T) {
+	ctx, cancel, protonDrive := setup(t)
+	t.Cleanup(func() {
+		defer cancel()
+		defer tearDown(t, ctx, protonDrive)
+	})
+
+	{
+		/* Create folder src */
+		_, err := protonDrive.CreateNewFolderByID(ctx, protonDrive.RootLink.LinkID, "src")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		paths := make([]string, 0)
+		err = protonDrive.ListDirectoriesRecursively(ctx, protonDrive.MainShareKR, protonDrive.RootLink, false, -1, 0, true, "", &paths)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if len(paths) != 1 {
+			t.Fatalf("Total path returned is differs from expected: %#v", paths)
+		}
+		if paths[0] != "/src" {
+			t.Fatalf("Wrong folder created")
+		}
+
+		paths = make([]string, 0)
+		err = protonDrive.ListDirectoriesRecursively(ctx, protonDrive.MainShareKR, protonDrive.RootLink, false, -1, 0, false, "", &paths)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if len(paths) != 2 {
+			t.Fatalf("Total path returned is differs from expected: %#v", paths)
+		}
+		if paths[0] != "/root" {
+			t.Fatalf("Wrong root folder")
+		}
+		if paths[1] != "/root/src" {
+			t.Fatalf("Wrong folder created")
+		}
+	}
+
+	{
+		/* Create folder dest */
+		_, err := protonDrive.CreateNewFolderByID(ctx, protonDrive.RootLink.LinkID, "dest")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		paths := make([]string, 0)
+		err = protonDrive.ListDirectoriesRecursively(ctx, protonDrive.MainShareKR, protonDrive.RootLink, false, -1, 0, true, "", &paths)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if len(paths) != 2 {
+			t.Fatalf("Total path returned is differs from expected: %#v", paths)
+		}
+		if paths[0] != "/src" {
+			t.Fatalf("Wrong folder created")
+		}
+		if paths[1] != "/dest" {
+			t.Fatalf("Wrong folder created")
+		}
+
+		paths = make([]string, 0)
+		err = protonDrive.ListDirectoriesRecursively(ctx, protonDrive.MainShareKR, protonDrive.RootLink, false, -1, 0, false, "", &paths)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if len(paths) != 3 {
+			t.Fatalf("Total path returned is differs from expected: %#v", paths)
+		}
+		if paths[0] != "/root" {
+			t.Fatalf("Wrong root folder")
+		}
+		if paths[1] != "/root/src" {
+			t.Fatalf("Wrong folder created")
+		}
+		if paths[2] != "/root/dest" {
+			t.Fatalf("Wrong folder created")
+		}
+	}
+
+	{
+		/* Move folder src to under dest */
+		targetSrcFolderLink, err := protonDrive.SearchByNameRecursivelyFromRoot(ctx, "src", true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		targetDestFolderLink, err := protonDrive.SearchByNameRecursivelyFromRoot(ctx, "dest", true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if targetSrcFolderLink == nil || targetDestFolderLink == nil {
+			t.Fatalf("Folder src/dest not found")
+		} else {
+			err := protonDrive.MoveFolder(ctx, targetSrcFolderLink, targetDestFolderLink, "newSrc")
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		paths := make([]string, 0)
+		err = protonDrive.ListDirectoriesRecursively(ctx, protonDrive.MainShareKR, protonDrive.RootLink, false, -1, 0, true, "", &paths)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if len(paths) != 2 {
+			t.Fatalf("Total path returned is differs from expected: %#v", paths)
+		}
+		if paths[0] != "/dest" {
+			t.Fatalf("Wrong folder moved")
+		}
+		if paths[1] != "/dest/newSrc" {
+			t.Fatalf("Wrong folder moved")
+		}
+
+		paths = make([]string, 0)
+		err = protonDrive.ListDirectoriesRecursively(ctx, protonDrive.MainShareKR, protonDrive.RootLink, false, -1, 0, false, "", &paths)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if len(paths) != 3 {
+			t.Fatalf("Total path returned is differs from expected: %#v", paths)
+		}
+		if paths[0] != "/root" {
+			t.Fatalf("Wrong root folder")
+		}
+		if paths[1] != "/root/dest" {
+			t.Fatalf("Wrong folder moved")
+		}
+		if paths[2] != "/root/dest/newSrc" {
+			t.Fatalf("Wrong folder moved")
+		}
+	}
+
+	{
+		/* Delete folder dest */
+		targetFolderLink, err := protonDrive.SearchByNameRecursivelyFromRoot(ctx, "dest", true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if targetFolderLink == nil {
+			t.Fatalf("Folder dest not found")
+		} else {
+			err = protonDrive.MoveFolderToTrashByID(ctx, targetFolderLink.LinkID, false)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		paths := make([]string, 0)
+		err = protonDrive.ListDirectoriesRecursively(ctx, protonDrive.MainShareKR, protonDrive.RootLink, false, -1, 0, false, "", &paths)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if len(paths) != 1 {
+			t.Fatalf("Total path returned is differs from expected: %#v", paths)
+		}
+		if paths[0] != "/root" {
+			t.Fatalf("Wrong root folder")
+		}
+	}
+}

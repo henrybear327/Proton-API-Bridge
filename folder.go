@@ -76,7 +76,6 @@ func (protonDrive *ProtonDrive) ListDirectoriesRecursively(
 	/*
 		Assumptions:
 		- we only care about the active ones
-		- we only operate on the mainShare
 	*/
 	if link.State != proton.LinkStateActive {
 		return nil
@@ -168,10 +167,6 @@ func (protonDrive *ProtonDrive) CreateNewFolderByID(ctx context.Context, parentL
 }
 
 func (protonDrive *ProtonDrive) CreateNewFolder(ctx context.Context, parentLink *proton.Link, folderName string) (string, error) {
-	/*
-		Assumptions:
-		- we only operate on the mainShare
-	*/
 	// TODO: check for duplicated folder name
 
 	parentNodeKR, err := protonDrive.getNodeKR(ctx, parentLink)
@@ -209,17 +204,15 @@ func (protonDrive *ProtonDrive) CreateNewFolder(ctx context.Context, parentLink 
 	if err != nil {
 		return "", err
 	}
-
-	newNodeKR, err := getKeyRing(parentNodeKR, protonDrive.AddrKR, newNodeKey, newNodePassphraseEnc, newNodePassphraseSignature)
-	if err != nil {
-		return "", err
-	}
-
 	err = createFolderReq.SetHash(folderName, parentHashKey)
 	if err != nil {
 		return "", err
 	}
 
+	newNodeKR, err := getKeyRing(parentNodeKR, protonDrive.AddrKR, newNodeKey, newNodePassphraseEnc, newNodePassphraseSignature)
+	if err != nil {
+		return "", err
+	}
 	err = createFolderReq.SetNodeHashKey(newNodeKR)
 	if err != nil {
 		return "", err
@@ -233,4 +226,65 @@ func (protonDrive *ProtonDrive) CreateNewFolder(ctx context.Context, parentLink 
 	// log.Printf("createFolderResp %#v", createFolderResp)
 
 	return createFolderResp.ID, nil
+}
+
+func (protonDrive *ProtonDrive) MoveFolderByID(ctx context.Context, srcLinkID, destParentLinkID, destName string) error {
+	srcLink, err := protonDrive.c.GetLink(ctx, protonDrive.MainShare.ShareID, srcLinkID)
+	if err != nil {
+		return err
+	}
+	if srcLink.State != proton.LinkStateActive {
+		return ErrLinkMustBeActive
+	}
+
+	destParentLink, err := protonDrive.c.GetLink(ctx, protonDrive.MainShare.ShareID, destParentLinkID)
+	if err != nil {
+		return err
+	}
+	if destParentLink.State != proton.LinkStateActive {
+		return ErrLinkMustBeActive
+	}
+
+	return protonDrive.MoveFolder(ctx, &srcLink, &destParentLink, destName)
+}
+
+func (protonDrive *ProtonDrive) MoveFolder(ctx context.Context, srcLink *proton.Link, destParentLink *proton.Link, destName string) error {
+	// we are moving the srcLink to under destParentLink, with name destName
+
+	destParentKR, err := protonDrive.getNodeKR(ctx, destParentLink)
+	if err != nil {
+		return err
+	}
+
+	req := proton.MoveLinkReq{
+		ParentLinkID:     destParentLink.LinkID,
+		SignatureAddress: protonDrive.signatureAddress,
+	}
+
+	err = req.SetName(destName, protonDrive.AddrKR, destParentKR)
+	if err != nil {
+		return err
+	}
+
+	destParentHashKey, err := destParentLink.GetHashKey(destParentKR)
+	if err != nil {
+		return err
+	}
+	err = req.SetHash(destName, destParentHashKey)
+	if err != nil {
+		return err
+	}
+
+	srcParentKR, err := protonDrive.getNodeKRByID(ctx, srcLink.ParentLinkID)
+	if err != nil {
+		return err
+	}
+	nodePassphrase, nodePassphraseSignature, err := updateNodeKeys(srcParentKR, destParentKR, protonDrive.AddrKR, srcLink.NodePassphrase, srcLink.NodePassphraseSignature)
+	if err != nil {
+		return err
+	}
+	req.NodePassphrase = nodePassphrase
+	req.NodePassphraseSignature = nodePassphraseSignature
+
+	return protonDrive.c.MoveLink(ctx, protonDrive.MainShare.ShareID, srcLink.LinkID, req)
 }
