@@ -228,7 +228,7 @@ func (protonDrive *ProtonDrive) CreateNewFolder(ctx context.Context, parentLink 
 	return createFolderResp.ID, nil
 }
 
-func (protonDrive *ProtonDrive) MoveFolderByID(ctx context.Context, srcLinkID, destParentLinkID, destName string) error {
+func (protonDrive *ProtonDrive) MoveFolderByID(ctx context.Context, srcLinkID, dstParentLinkID, dstName string) error {
 	srcLink, err := protonDrive.c.GetLink(ctx, protonDrive.MainShare.ShareID, srcLinkID)
 	if err != nil {
 		return err
@@ -237,40 +237,44 @@ func (protonDrive *ProtonDrive) MoveFolderByID(ctx context.Context, srcLinkID, d
 		return ErrLinkMustBeActive
 	}
 
-	destParentLink, err := protonDrive.c.GetLink(ctx, protonDrive.MainShare.ShareID, destParentLinkID)
+	dstParentLink, err := protonDrive.c.GetLink(ctx, protonDrive.MainShare.ShareID, dstParentLinkID)
 	if err != nil {
 		return err
 	}
-	if destParentLink.State != proton.LinkStateActive {
+	if dstParentLink.State != proton.LinkStateActive {
 		return ErrLinkMustBeActive
 	}
 
-	return protonDrive.MoveFolder(ctx, &srcLink, &destParentLink, destName)
+	return protonDrive.MoveFolder(ctx, &srcLink, &dstParentLink, dstName)
 }
 
-func (protonDrive *ProtonDrive) MoveFolder(ctx context.Context, srcLink *proton.Link, destParentLink *proton.Link, destName string) error {
-	// we are moving the srcLink to under destParentLink, with name destName
+func (protonDrive *ProtonDrive) MoveFile(ctx context.Context, srcLink *proton.Link, dstParentLink *proton.Link, dstName string) error {
+	return protonDrive.MoveFolder(ctx, srcLink, dstParentLink, dstName)
+}
+
+func (protonDrive *ProtonDrive) MoveFolder(ctx context.Context, srcLink *proton.Link, dstParentLink *proton.Link, dstName string) error {
+	// we are moving the srcLink to under dstParentLink, with name dstName
 	req := proton.MoveLinkReq{
-		ParentLinkID:     destParentLink.LinkID,
+		ParentLinkID:     dstParentLink.LinkID,
 		OriginalHash:     srcLink.Hash,
 		SignatureAddress: protonDrive.signatureAddress,
 	}
 
-	destParentKR, err := protonDrive.getNodeKR(ctx, destParentLink)
+	dstParentKR, err := protonDrive.getNodeKR(ctx, dstParentLink)
 	if err != nil {
 		return err
 	}
 
-	err = req.SetName(destName, protonDrive.AddrKR, destParentKR)
+	err = req.SetName(dstName, protonDrive.AddrKR, dstParentKR)
 	if err != nil {
 		return err
 	}
 
-	destParentHashKey, err := destParentLink.GetHashKey(destParentKR)
+	dstParentHashKey, err := dstParentLink.GetHashKey(dstParentKR)
 	if err != nil {
 		return err
 	}
-	err = req.SetHash(destName, destParentHashKey)
+	err = req.SetHash(dstName, dstParentHashKey)
 	if err != nil {
 		return err
 	}
@@ -279,7 +283,7 @@ func (protonDrive *ProtonDrive) MoveFolder(ctx context.Context, srcLink *proton.
 	if err != nil {
 		return err
 	}
-	nodePassphrase, err := reencryptKeyPacket(srcParentKR, destParentKR, protonDrive.AddrKR, srcLink.NodePassphrase)
+	nodePassphrase, err := reencryptKeyPacket(srcParentKR, dstParentKR, protonDrive.AddrKR, srcLink.NodePassphrase)
 	if err != nil {
 		return err
 	}

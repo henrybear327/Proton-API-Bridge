@@ -1,5 +1,5 @@
 package proton_api_bridge
 
-const (
+var (
 	UPLOAD_BLOCK_SIZE = 4 * 1024 * 1024
 )

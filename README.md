@@ -78,9 +78,9 @@ Currently, the development are split into 2 versions. V1 supports the features [
     - [x] Create a Drive struct to encapsulate all the functions (maybe?)
     - [x] Move comments to proper places
     - [x] Modify `shouldRejectDestructiveActions()`
+    - [x] Refactor 
     - [ ] Check file metadata
     - [ ] Try to check if all functions are used at least once so we know if it's functioning or not
-    - [ ] Refactor it, it's not scaling well
 - [ ] Documentation
 - [x] Reduce config options on caching access token
 - [x] Remove integration test safeguarding

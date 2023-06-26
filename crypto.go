@@ -72,7 +72,7 @@ func generateNodeKeys(kr, addrKR *crypto.KeyRing) (string, string, string, error
 	return nodeKey, nodePassphraseEnc, nodePassphraseSignature, nil
 }
 
-func reencryptKeyPacket(srcKR, destKR, addrKR *crypto.KeyRing, passphrase string) (string, error) {
+func reencryptKeyPacket(srcKR, dstKR, addrKR *crypto.KeyRing, passphrase string) (string, error) {
 	oldSplitMessage, err := crypto.NewPGPSplitMessageFromArmored(passphrase)
 	if err != nil {
 		return "", err
@@ -83,7 +83,7 @@ func reencryptKeyPacket(srcKR, destKR, addrKR *crypto.KeyRing, passphrase string
 		return "", err
 	}
 
-	newKeyPacket, err := destKR.EncryptSessionKey(sessionKey)
+	newKeyPacket, err := dstKR.EncryptSessionKey(sessionKey)
 	if err != nil {
 		return "", err
 	}
