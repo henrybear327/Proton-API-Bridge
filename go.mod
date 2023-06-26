@@ -5,14 +5,14 @@ go 1.18
 require (
 	github.com/ProtonMail/gopenpgp/v2 v2.7.1
 	github.com/gabriel-vasile/mimetype v1.4.2
-	github.com/henrybear327/go-proton-api v0.0.0-20230625145921-688669bde6a8
+	github.com/henrybear327/go-proton-api v0.0.0-20230626095836-c05921e07e64
 	github.com/relvacode/iso8601 v1.3.0
 )
 
 require (
 	github.com/ProtonMail/bcrypt v0.0.0-20211005172633-e235017c1baf // indirect
 	github.com/ProtonMail/gluon v0.16.1-0.20230526091020-fb7689b15ae3 // indirect
-	github.com/ProtonMail/go-crypto v0.0.0-20230619160724-3fbb1f12458c // indirect
+	github.com/ProtonMail/go-crypto v0.0.0-20230626094100-7e9e0395ebec // indirect
 	github.com/ProtonMail/go-mime v0.0.0-20230322103455-7d82a3887f2f // indirect
 	github.com/ProtonMail/go-srp v0.0.7 // indirect
 	github.com/PuerkitoBio/goquery v1.8.1 // indirect

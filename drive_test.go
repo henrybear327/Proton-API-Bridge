@@ -862,7 +862,7 @@ func TestCreateAndMoveAndDeleteFolderAtRoot(t *testing.T) {
 		if targetSrcFolderLink == nil || targetDestFolderLink == nil {
 			t.Fatalf("Folder src/dest not found")
 		} else {
-			err := protonDrive.MoveFolder(ctx, targetSrcFolderLink, targetDestFolderLink, "newSrc")
+			err := protonDrive.MoveFolder(ctx, targetSrcFolderLink, targetDestFolderLink, "src")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -880,7 +880,7 @@ func TestCreateAndMoveAndDeleteFolderAtRoot(t *testing.T) {
 		if paths[0] != "/dest" {
 			t.Fatalf("Wrong folder moved")
 		}
-		if paths[1] != "/dest/newSrc" {
+		if paths[1] != "/dest/src" {
 			t.Fatalf("Wrong folder moved")
 		}
 
@@ -899,8 +899,271 @@ func TestCreateAndMoveAndDeleteFolderAtRoot(t *testing.T) {
 		if paths[1] != "/root/dest" {
 			t.Fatalf("Wrong folder moved")
 		}
+		if paths[2] != "/root/dest/src" {
+			t.Fatalf("Wrong folder moved")
+		}
+	}
+
+	{
+		/* Delete folder dest */
+		targetFolderLink, err := protonDrive.SearchByNameRecursivelyFromRoot(ctx, "dest", true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if targetFolderLink == nil {
+			t.Fatalf("Folder dest not found")
+		} else {
+			err = protonDrive.MoveFolderToTrashByID(ctx, targetFolderLink.LinkID, false)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		paths := make([]string, 0)
+		err = protonDrive.ListDirectoriesRecursively(ctx, protonDrive.MainShareKR, protonDrive.RootLink, false, -1, 0, false, "", &paths)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if len(paths) != 1 {
+			t.Fatalf("Total path returned is differs from expected: %#v", paths)
+		}
+		if paths[0] != "/root" {
+			t.Fatalf("Wrong root folder")
+		}
+	}
+}
+
+func TestCreateAndMoveAndDeleteFolderAtRootWithFile(t *testing.T) {
+	ctx, cancel, protonDrive := setup(t)
+	t.Cleanup(func() {
+		defer cancel()
+		defer tearDown(t, ctx, protonDrive)
+	})
+
+	{
+		/* Create folder src */
+		_, err := protonDrive.CreateNewFolderByID(ctx, protonDrive.RootLink.LinkID, "src")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		paths := make([]string, 0)
+		err = protonDrive.ListDirectoriesRecursively(ctx, protonDrive.MainShareKR, protonDrive.RootLink, false, -1, 0, true, "", &paths)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if len(paths) != 1 {
+			t.Fatalf("Total path returned is differs from expected: %#v", paths)
+		}
+		if paths[0] != "/src" {
+			t.Fatalf("Wrong folder created")
+		}
+
+		paths = make([]string, 0)
+		err = protonDrive.ListDirectoriesRecursively(ctx, protonDrive.MainShareKR, protonDrive.RootLink, false, -1, 0, false, "", &paths)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if len(paths) != 2 {
+			t.Fatalf("Total path returned is differs from expected: %#v", paths)
+		}
+		if paths[0] != "/root" {
+			t.Fatalf("Wrong root folder")
+		}
+		if paths[1] != "/root/src" {
+			t.Fatalf("Wrong folder created")
+		}
+	}
+
+	{
+		/* Upload a file integrationTestImage.png to src */
+		targetSrcFolderLink, err := protonDrive.SearchByNameRecursivelyFromRoot(ctx, "src", true)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if targetSrcFolderLink == nil {
+			t.Fatalf("src folder should exist")
+		} else {
+			f, err := os.Open("testcase/integrationTestImage.png")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer f.Close()
+
+			info, err := os.Stat("testcase/integrationTestImage.png")
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			in := bufio.NewReader(f)
+
+			_, _, err = protonDrive.UploadFileByReader(ctx, targetSrcFolderLink.LinkID, "integrationTestImage.png", info.ModTime(), in)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		paths := make([]string, 0)
+		err = protonDrive.ListDirectoriesRecursively(ctx, protonDrive.MainShareKR, protonDrive.RootLink, false, -1, 0, true, "", &paths)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if len(paths) != 2 {
+			t.Fatalf("Total path returned is not as expected: %#v", paths)
+		}
+		if paths[0] != "/src" {
+			t.Fatalf("Wrong folder name")
+		}
+		if paths[1] != "/src/integrationTestImage.png" {
+			t.Fatalf("Wrong file name decrypted")
+		}
+
+		paths = make([]string, 0)
+		err = protonDrive.ListDirectoriesRecursively(ctx, protonDrive.MainShareKR, protonDrive.RootLink, false, -1, 0, false, "", &paths)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if len(paths) != 3 {
+			t.Fatalf("Total path returned is differs from expected: %#v", paths)
+		}
+		if paths[0] != "/root" {
+			t.Fatalf("Wrong root folder")
+		}
+		if paths[1] != "/root/src" {
+			t.Fatalf("Wrong folder name")
+		}
+		if paths[2] != "/root/src/integrationTestImage.png" {
+			t.Fatalf("Wrong file name decrypted")
+		}
+	}
+
+	{
+		/* Create folder dest */
+		_, err := protonDrive.CreateNewFolderByID(ctx, protonDrive.RootLink.LinkID, "dest")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		paths := make([]string, 0)
+		err = protonDrive.ListDirectoriesRecursively(ctx, protonDrive.MainShareKR, protonDrive.RootLink, false, -1, 0, true, "", &paths)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if len(paths) != 3 {
+			t.Fatalf("Total path returned is differs from expected: %#v", paths)
+		}
+		if paths[0] != "/src" {
+			t.Fatalf("Wrong folder created")
+		}
+		if paths[1] != "/src/integrationTestImage.png" {
+			t.Fatalf("Wrong file created")
+		}
+		if paths[2] != "/dest" {
+			t.Fatalf("Wrong folder created")
+		}
+
+		paths = make([]string, 0)
+		err = protonDrive.ListDirectoriesRecursively(ctx, protonDrive.MainShareKR, protonDrive.RootLink, false, -1, 0, false, "", &paths)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if len(paths) != 4 {
+			t.Fatalf("Total path returned is differs from expected: %#v", paths)
+		}
+		if paths[0] != "/root" {
+			t.Fatalf("Wrong root folder")
+		}
+		if paths[1] != "/root/src" {
+			t.Fatalf("Wrong folder created")
+		}
+		if paths[2] != "/root/src/integrationTestImage.png" {
+			t.Fatalf("Wrong file created")
+		}
+		if paths[3] != "/root/dest" {
+			t.Fatalf("Wrong folder created")
+		}
+	}
+
+	{
+		/* Move folder src to under dest */
+		targetSrcFolderLink, err := protonDrive.SearchByNameRecursivelyFromRoot(ctx, "src", true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		targetDestFolderLink, err := protonDrive.SearchByNameRecursivelyFromRoot(ctx, "dest", true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if targetSrcFolderLink == nil || targetDestFolderLink == nil {
+			t.Fatalf("Folder src/dest not found")
+		} else {
+			err := protonDrive.MoveFolder(ctx, targetSrcFolderLink, targetDestFolderLink, "newSrc")
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		targetSrcFolderLink, err = protonDrive.SearchByNameRecursivelyFromRoot(ctx, "newSrc", true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		targetDestFolderLink, err = protonDrive.SearchByNameRecursivelyFromRoot(ctx, "dest", true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if targetSrcFolderLink == nil || targetDestFolderLink == nil {
+			t.Fatalf("Folder newSrc/dest not found")
+		}
+
+		paths := make([]string, 0)
+		err = protonDrive.ListDirectoriesRecursively(ctx, protonDrive.MainShareKR, protonDrive.RootLink, false, -1, 0, true, "", &paths)
+		if err != nil {
+			// if the move is done wrongly, the files within the folder won't be able to be decrypted
+			// gopenpgp: error in reading message: openpgp: invalid data: parsing error
+			t.Fatal(err)
+		}
+
+		if len(paths) != 3 {
+			t.Fatalf("Total path returned is differs from expected: %#v", paths)
+		}
+		if paths[0] != "/dest" {
+			t.Fatalf("Wrong folder moved")
+		}
+		if paths[1] != "/dest/newSrc" {
+			t.Fatalf("Wrong folder moved")
+		}
+		if paths[2] != "/dest/newSrc/integrationTestImage.png" {
+			t.Fatalf("Wrong file moved")
+		}
+
+		paths = make([]string, 0)
+		err = protonDrive.ListDirectoriesRecursively(ctx, protonDrive.MainShareKR, protonDrive.RootLink, false, -1, 0, false, "", &paths)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if len(paths) != 4 {
+			t.Fatalf("Total path returned is differs from expected: %#v", paths)
+		}
+		if paths[0] != "/root" {
+			t.Fatalf("Wrong root folder")
+		}
+		if paths[1] != "/root/dest" {
+			t.Fatalf("Wrong folder moved")
+		}
 		if paths[2] != "/root/dest/newSrc" {
 			t.Fatalf("Wrong folder moved")
+		}
+		if paths[3] != "/root/dest/newSrc/integrationTestImage.png" {
+			t.Fatalf("Wrong file moved")
 		}
 	}
 

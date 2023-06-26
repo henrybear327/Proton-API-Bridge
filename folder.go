@@ -250,15 +250,15 @@ func (protonDrive *ProtonDrive) MoveFolderByID(ctx context.Context, srcLinkID, d
 
 func (protonDrive *ProtonDrive) MoveFolder(ctx context.Context, srcLink *proton.Link, destParentLink *proton.Link, destName string) error {
 	// we are moving the srcLink to under destParentLink, with name destName
+	req := proton.MoveLinkReq{
+		ParentLinkID:     destParentLink.LinkID,
+		OriginalHash:     srcLink.Hash,
+		SignatureAddress: protonDrive.signatureAddress,
+	}
 
 	destParentKR, err := protonDrive.getNodeKR(ctx, destParentLink)
 	if err != nil {
 		return err
-	}
-
-	req := proton.MoveLinkReq{
-		ParentLinkID:     destParentLink.LinkID,
-		SignatureAddress: protonDrive.signatureAddress,
 	}
 
 	err = req.SetName(destName, protonDrive.AddrKR, destParentKR)
@@ -279,12 +279,12 @@ func (protonDrive *ProtonDrive) MoveFolder(ctx context.Context, srcLink *proton.
 	if err != nil {
 		return err
 	}
-	nodePassphrase, nodePassphraseSignature, err := updateNodeKeys(srcParentKR, destParentKR, protonDrive.AddrKR, srcLink.NodePassphrase, srcLink.NodePassphraseSignature)
+	nodePassphrase, err := reencryptKeyPacket(srcParentKR, destParentKR, protonDrive.AddrKR, srcLink.NodePassphrase)
 	if err != nil {
 		return err
 	}
 	req.NodePassphrase = nodePassphrase
-	req.NodePassphraseSignature = nodePassphraseSignature
+	req.NodePassphraseSignature = srcLink.NodePassphraseSignature
 
 	return protonDrive.c.MoveLink(ctx, protonDrive.MainShare.ShareID, srcLink.LinkID, req)
 }

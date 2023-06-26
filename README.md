@@ -62,12 +62,11 @@ Currently, the development are split into 2 versions. V1 supports the features [
     - [x] Upload
         - [x] Handle empty file        
         - [x] Parse mime type 
-        - [ ] Force overwrite
-        - [ ] Add revision
+        - [x] Add revision
+        - [x] Modified time
         - [ ] Improve to handle large files
         - [ ] Upload verification
         - [ ] Handle failed / interrupted upload
-        - [x] Modified time
     - [ ] List file metadata 
 - [x] Duplicated file name handling: 422: A file or folder with that name already exists (Code=2500, Status=422)
 - [ ] Duplicated folder name handling: 422: A file or folder with that name already exists (Code=2500, Status=422)
@@ -81,6 +80,7 @@ Currently, the development are split into 2 versions. V1 supports the features [
     - [x] Modify `shouldRejectDestructiveActions()`
     - [ ] Check file metadata
     - [ ] Try to check if all functions are used at least once so we know if it's functioning or not
+    - [ ] Refactor it, it's not scaling well
 - [ ] Documentation
 - [x] Reduce config options on caching access token
 - [x] Remove integration test safeguarding
@@ -100,8 +100,8 @@ Currently, the development are split into 2 versions. V1 supports the features [
 - [x] Fix the function argument passing (using pointers)
 - [ ] Use proper AppVersion (we need to be friendly to the Proton servers)
 - [ ] Handle account with
-    - [ ] multiple addresses
-    - [ ] multiple keys per addresses
+    - [x] multiple addresses
+    - [x] multiple keys per addresses
     - [ ] multiple shares 
 - [x] Update RClone's contribution.md file
 - [x] Remove delete all's hardcoded string
@@ -117,7 +117,9 @@ Currently, the development are split into 2 versions. V1 supports the features [
 - Large file handling: for uploading, files will be loaded into the memory entirely, encrypted, and then chunked; for downloading, the file will be written when all blocks are decrypted and checked
 - Crypto-related operations, e.g. signature verification, still needs to cross check with iOS or web open source codebase 
 - No move for file and folders, thumbnails, respecting accepted MIME types, max upload size, can't init Proton Drive (coming in V2)
-- Assumptions: only one main share per account
+- Assumptions
+    - only one main share per account
+    - only operate on active links
 
 ## V2
 
