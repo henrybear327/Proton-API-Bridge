@@ -47,13 +47,11 @@ func (protonDrive *ProtonDrive) GetActiveRevision(ctx context.Context, link *pro
 		}
 	}
 
-	// FIXME: compute total blocks required
-	// TODO: handle large file downloading
-	// FIXME: total block calculation: how?
-	revision, err := protonDrive.c.GetRevision(ctx, protonDrive.MainShare.ShareID, link.LinkID, revisions[activeRevision].ID, 1, 50)
+	revision, err := protonDrive.c.GetRevisionAllBlocks(ctx, protonDrive.MainShare.ShareID, link.LinkID, revisions[activeRevision].ID)
 	if err != nil {
 		return nil, err
 	}
+	// log.Println("Total blocks", len(revision.Blocks))
 
 	return &revision, nil
 }

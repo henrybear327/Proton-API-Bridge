@@ -4,8 +4,10 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"io"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/henrybear327/go-proton-api"
 
@@ -66,7 +68,29 @@ func createFolder(t *testing.T, ctx context.Context, protonDrive *ProtonDrive, p
 	}
 }
 
-func uploadFile(t *testing.T, ctx context.Context, protonDrive *ProtonDrive, parent, name string, filepath string) {
+func uploadFileByReader(t *testing.T, ctx context.Context, protonDrive *ProtonDrive, parent, name string, in io.Reader) {
+	parentLink := protonDrive.RootLink
+	if parent != "" {
+		targetFolderLink, err := protonDrive.SearchByNameRecursivelyFromRoot(ctx, parent, true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if targetFolderLink == nil {
+			t.Fatalf("Folder %v not found", parent)
+		}
+		parentLink = targetFolderLink
+	}
+	if parentLink.Type != proton.LinkTypeFolder {
+		t.Fatalf("parentLink is not of folder type")
+	}
+
+	_, _, err := protonDrive.UploadFileByReader(ctx, parentLink.LinkID, name, time.Now(), in)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func uploadFileByFilepath(t *testing.T, ctx context.Context, protonDrive *ProtonDrive, parent, name string, filepath string) {
 	parentLink := protonDrive.RootLink
 	if parent != "" {
 		targetFolderLink, err := protonDrive.SearchByNameRecursivelyFromRoot(ctx, parent, true)
@@ -101,7 +125,7 @@ func uploadFile(t *testing.T, ctx context.Context, protonDrive *ProtonDrive, par
 	}
 }
 
-func downloadFile(t *testing.T, ctx context.Context, protonDrive *ProtonDrive, parent, name string, filepath string) {
+func downloadFile(t *testing.T, ctx context.Context, protonDrive *ProtonDrive, parent, name string, filepath string, data string) {
 	parentLink := protonDrive.RootLink
 	if parent != "" {
 		targetFolderLink, err := protonDrive.SearchByNameRecursivelyFromRoot(ctx, parent, true)
@@ -135,17 +159,25 @@ func downloadFile(t *testing.T, ctx context.Context, protonDrive *ProtonDrive, p
 			t.Fatalf("FileSystemAttr should not be nil")
 		} else {
 			if len(downloadedData) != int(fileSystemAttr.Size) {
-				t.Fatalf("Downloaded file size != uploaded file size: %#v", fileSystemAttr)
+				t.Fatalf("Downloaded file size != uploaded file size: %#v vs %#v", len(downloadedData), int(fileSystemAttr.Size))
 			}
 		}
 
-		originalData, err := os.ReadFile(filepath)
-		if err != nil {
-			t.Fatal(err)
-		}
+		if filepath != "" {
+			originalData, err := os.ReadFile(filepath)
+			if err != nil {
+				t.Fatal(err)
+			}
 
-		if !bytes.Equal(downloadedData, originalData) {
-			t.Fatalf("Downloaded content is different from the original content")
+			if !bytes.Equal(downloadedData, originalData) {
+				t.Fatalf("Downloaded content is different from the original content")
+			}
+		} else if data != "" {
+			if !bytes.Equal(downloadedData, []byte(data)) {
+				t.Fatalf("Downloaded content is different from the original content")
+			}
+		} else {
+			t.Fatalf("Nothing to verify against")
 		}
 	}
 }

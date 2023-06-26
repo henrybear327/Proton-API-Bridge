@@ -55,8 +55,9 @@ Currently, the development are split into 2 versions. V1 supports the features [
 - [ ] File actions
     - [x] Download
         - [x] Download empty file
-        - [ ] Properly handle large files and empty files (check iOS codebase)
+        - [x] Properly handle large files and empty files (check iOS codebase)
             - esp. large files, where buffering in-memory will screw up the runtime
+        - [ ] Improve large file handling
         - [ ] Check signature and hash
     - [x] Delete
     - [x] Upload
@@ -64,8 +65,7 @@ Currently, the development are split into 2 versions. V1 supports the features [
         - [x] Parse mime type 
         - [x] Add revision
         - [x] Modified time
-        - [ ] Improve to handle large files
-        - [ ] Upload verification
+        - [ ] Improve large file handling
         - [ ] Handle failed / interrupted upload
     - [ ] List file metadata 
 - [x] Duplicated file name handling: 422: A file or folder with that name already exists (Code=2500, Status=422)
@@ -107,7 +107,6 @@ Currently, the development are split into 2 versions. V1 supports the features [
 - [x] Remove delete all's hardcoded string
 - [ ] Address TODO and FIXME
 - [ ] Use CI to run integration tests
-- [ ] Figure out the bottleneck by doing some profiling 
 - [ ] Some error handling from [here](https://github.com/ProtonMail/WebClients/blob/main/packages/shared/lib/drive/constants.ts) MAX_NAME_LENGTH, TIMEOUT
 - [x] Point to the right proton-go-api branch
     - [x] Run `go get github.com/henrybear327/go-proton-api@dev` to update go mod
@@ -125,6 +124,7 @@ Currently, the development are split into 2 versions. V1 supports the features [
 
 Moving files and folders are [features](https://github.com/rclone/rclone/blob/51a468b2bae4ca8e21760435211623a8199a9167/fs/features.go#L25)
 
+- [ ] Figure out the bottleneck by doing some profiling 
 - [ ] Folder
     - [ ] (Feature) Update (force overwrite)
     - [ ] (Feature) Move
