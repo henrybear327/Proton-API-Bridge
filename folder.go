@@ -228,6 +228,30 @@ func (protonDrive *ProtonDrive) CreateNewFolder(ctx context.Context, parentLink 
 	return createFolderResp.ID, nil
 }
 
+func (protonDrive *ProtonDrive) MoveFileByID(ctx context.Context, srcLinkID, dstParentLinkID string, dstName string) error {
+	srcLink, err := protonDrive.c.GetLink(ctx, protonDrive.MainShare.ShareID, srcLinkID)
+	if err != nil {
+		return err
+	}
+	if srcLink.State != proton.LinkStateActive {
+		return ErrLinkMustBeActive
+	}
+
+	dstParentLink, err := protonDrive.c.GetLink(ctx, protonDrive.MainShare.ShareID, dstParentLinkID)
+	if err != nil {
+		return err
+	}
+	if dstParentLink.State != proton.LinkStateActive {
+		return ErrLinkMustBeActive
+	}
+
+	return protonDrive.MoveFile(ctx, &srcLink, &dstParentLink, dstName)
+}
+
+func (protonDrive *ProtonDrive) MoveFile(ctx context.Context, srcLink *proton.Link, dstParentLink *proton.Link, dstName string) error {
+	return protonDrive.MoveFolder(ctx, srcLink, dstParentLink, dstName)
+}
+
 func (protonDrive *ProtonDrive) MoveFolderByID(ctx context.Context, srcLinkID, dstParentLinkID, dstName string) error {
 	srcLink, err := protonDrive.c.GetLink(ctx, protonDrive.MainShare.ShareID, srcLinkID)
 	if err != nil {
@@ -248,11 +272,11 @@ func (protonDrive *ProtonDrive) MoveFolderByID(ctx context.Context, srcLinkID, d
 	return protonDrive.MoveFolder(ctx, &srcLink, &dstParentLink, dstName)
 }
 
-func (protonDrive *ProtonDrive) MoveFile(ctx context.Context, srcLink *proton.Link, dstParentLink *proton.Link, dstName string) error {
-	return protonDrive.MoveFolder(ctx, srcLink, dstParentLink, dstName)
+func (protonDrive *ProtonDrive) MoveFolder(ctx context.Context, srcLink *proton.Link, dstParentLink *proton.Link, dstName string) error {
+	return protonDrive.moveLink(ctx, srcLink, dstParentLink, dstName)
 }
 
-func (protonDrive *ProtonDrive) MoveFolder(ctx context.Context, srcLink *proton.Link, dstParentLink *proton.Link, dstName string) error {
+func (protonDrive *ProtonDrive) moveLink(ctx context.Context, srcLink *proton.Link, dstParentLink *proton.Link, dstName string) error {
 	// we are moving the srcLink to under dstParentLink, with name dstName
 	req := proton.MoveLinkReq{
 		ParentLinkID:     dstParentLink.LinkID,
