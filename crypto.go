@@ -1,6 +1,7 @@
 package proton_api_bridge
 
 import (
+	"crypto/sha256"
 	"encoding/base64"
 	"io"
 
@@ -126,7 +127,7 @@ func getKeyRing(kr, addrKR *crypto.KeyRing, key, passphrase, passphraseSignature
 	return crypto.NewKeyRing(unlockedKey)
 }
 
-func decryptBlockIntoBuffer(sessionKey *crypto.SessionKey, addrKR, nodeKR *crypto.KeyRing, encSignature string, buffer io.ReaderFrom, block io.ReadCloser) error {
+func decryptBlockIntoBuffer(sessionKey *crypto.SessionKey, addrKR, nodeKR *crypto.KeyRing, originalHash, encSignature string, buffer io.ReaderFrom, block io.ReadCloser) error {
 	data, err := io.ReadAll(block)
 	if err != nil {
 		return err
@@ -150,6 +151,17 @@ func decryptBlockIntoBuffer(sessionKey *crypto.SessionKey, addrKR, nodeKR *crypt
 	_, err = buffer.ReadFrom(plainMessage.NewReader())
 	if err != nil {
 		return err
+	}
+
+	h := sha256.New()
+	h.Write(data)
+	hash := h.Sum(nil)
+	base64Hash := base64.StdEncoding.EncodeToString(hash)
+	if err != nil {
+		return err
+	}
+	if base64Hash != originalHash {
+		return ErrDownloadedBlockHashVerificationFailed
 	}
 
 	return nil

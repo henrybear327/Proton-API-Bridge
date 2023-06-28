@@ -121,7 +121,7 @@ func (protonDrive *ProtonDrive) DownloadFile(ctx context.Context, link *proton.L
 		}
 		defer blockReader.Close()
 
-		err = decryptBlockIntoBuffer(sessionKey, protonDrive.AddrKR, nodeKR, revision.Blocks[i].EncSignature, buffer, blockReader)
+		err = decryptBlockIntoBuffer(sessionKey, protonDrive.AddrKR, nodeKR, revision.Blocks[i].Hash, revision.Blocks[i].EncSignature, buffer, blockReader)
 		if err != nil {
 			return nil, nil, err
 		}

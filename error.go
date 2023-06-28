@@ -10,6 +10,7 @@ var (
 	ErrFolderIsNotEmpty                      = errors.New("folder can't be deleted becuase it is not empty")
 	ErrInternalErrorOnFileUpload             = errors.New("either link or createFileResp must be not nil")
 	ErrMissingInputUploadAndCollectBlockData = errors.New("missing either session key or key ring")
-	ErrLinkMustNotBeNil                      = errors.New("Missing input proton link")
+	ErrLinkMustNotBeNil                      = errors.New("missing input proton link")
 	ErrLinkMustBeActive                      = errors.New("can not operate on link state other than active")
+	ErrDownloadedBlockHashVerificationFailed = errors.New("the hash of the downloaded block doesn't match the original hash")
 )

@@ -57,8 +57,8 @@ Currently, the development are split into 2 versions. V1 supports the features [
         - [x] Download empty file
         - [x] Properly handle large files and empty files (check iOS codebase)
             - esp. large files, where buffering in-memory will screw up the runtime
+        - [x] Check signature and hash
         - [ ] Improve large file handling
-        - [ ] Check signature and hash
     - [x] Delete
     - [x] Upload
         - [x] Handle empty file        
