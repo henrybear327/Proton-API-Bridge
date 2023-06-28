@@ -1,6 +1,6 @@
 # Proton API Bridge
 
-Thanks to Proton open sourcing [proton-go-api](https://github.com/ProtonMail/go-proton-api) and the web, iOS, and Android client codebases, we don't need to completely reverse engineer the APIs.
+Thanks to Proton open sourcing [proton-go-api](https://github.com/ProtonMail/go-proton-api) and the web, iOS, and Android client codebases, we don't need to completely reverse engineer the APIs by observing the web client traffic!
 
 [proton-go-api](https://github.com/ProtonMail/go-proton-api) provides the basic building blocks of API calls and error handling, such as 429 exponential back-off, but it is pretty much just a barebone interface to the Proton API. For example, the encryption and decryption of the Proton Drive file are not provided in this library. 
 
@@ -10,15 +10,9 @@ Currently, only Proton Drive APIs are bridged, as we are aiming to implement a b
 
 ## Sidenotes
 
-We are using a fork of the [proton-go-api](https://github.com/henrybear327/go-proton-api), adding quite some new code to it. We will try to commit back to the upstream once we feel like the code changes are stable.
+We are using a fork of the [proton-go-api](https://github.com/henrybear327/go-proton-api), as we are adding quite some new code to it. We are actively rebasing on top of the master branch of the upstream, as we will try to commit back to the upstream once we feel like the code changes are stable.
 
-# Instructions to run the code
-
-## Compiling and running
-
-`go run .`
-
-## Unit testing and linting 
+# Unit testing and linting 
 
 `golangci-lint run && go test -race -failfast -v ./...`
 
@@ -26,7 +20,9 @@ We are using a fork of the [proton-go-api](https://github.com/henrybear327/go-pr
 
 > In collaboration with Azimjon Pulatov, in memory of our good old days at Meta, London, in the summer of 2022.
 
-Currently, the development are split into 2 versions. V1 supports the features [required by rclone](https://github.com/henrybear327/rclone/blob/master/fs/types.go), such as `file listing`. V2 will support the extra features that rclone has interface for, such as `move file` and `move folder` operations.
+Currently, the development are split into 2 versions. 
+V1 supports the features [required by rclone](https://github.com/henrybear327/rclone/blob/master/fs/types.go), such as `file listing`. As the unit and integration tests from rclone have all been passed, we would stabilize this and then move onto developing V2.
+V2 will bring in optimizations and enhancements, such as optimizing uploading and downloading performance, supporting thumbnails, etc.
 
 ## V1
 
@@ -44,33 +40,24 @@ Currently, the development are split into 2 versions. V1 supports the features [
 - [x] Fix context with proper propagation instead of using `ctx` everywhere
 - [x] Folder actions
     - [x] List all folders and files within the root folder
-        - [x] BUG: listing directory - missing signature when there are more than 1 share
-            - maybe the way I decrypt the keyring is wrong
-                - (wrong fix for the first time) bug on no name for the root folder 
-                - (correct fix) we need to check for the "active" folder type first
+        - [x] BUG: listing directory - missing signature when there are more than 1 share -> we need to check for the "active" folder type first
     - [x] List all folders and files recursively within the root folder
     - [x] Delete
-        - [x] Implement delete all for testing -> very dangerous, thus currently guarded with a hardcoded string
     - [x] Create
-- [ ] File actions
+- [x] File actions
     - [x] Download
         - [x] Download empty file
         - [x] Properly handle large files and empty files (check iOS codebase)
             - esp. large files, where buffering in-memory will screw up the runtime
         - [x] Check signature and hash
-        - [ ] Improve large file handling
     - [x] Delete
     - [x] Upload
         - [x] Handle empty file        
         - [x] Parse mime type 
         - [x] Add revision
         - [x] Modified time
-        - [ ] Improve large file handling
-        - [ ] Handle failed / interrupted upload
-    - [ ] List file metadata 
+    - [x] List file metadata 
 - [x] Duplicated file name handling: 422: A file or folder with that name already exists (Code=2500, Status=422)
-- [ ] Duplicated folder name handling: 422: A file or folder with that name already exists (Code=2500, Status=422)
-- [ ] Handle ERROR RESTY 422: File or folder was not found. (Code=2501, Status=422), Attempt 1
 - [x] Init ProtonDrive with config passed in as Map
 - [x] Remove all `log.Fatalln` and use proper error propagation (basically remove `HandleError` and we go from there)
 - [x] Integration tests
@@ -79,13 +66,8 @@ Currently, the development are split into 2 versions. V1 supports the features [
     - [x] Move comments to proper places
     - [x] Modify `shouldRejectDestructiveActions()`
     - [x] Refactor 
-    - [ ] Check file metadata
-    - [ ] Try to check if all functions are used at least once so we know if it's functioning or not
-- [ ] Documentation
 - [x] Reduce config options on caching access token
 - [x] Remove integration test safeguarding
-- [ ] Improve file searching function to use HMAC instead of just using string comparison
-- [ ] Remove e.g. proton.link related exposures in the function signature (this library should abstract them all)
 
 ### TODO
 
@@ -96,18 +78,12 @@ Currently, the development are split into 2 versions. V1 supports the features [
 - [x] Remove mail-related apis (to reduce dependencies) 
 - [x] Make a "super class" and expose all necessary methods for the outside to call
 - [x] Add 2FA login
-- [ ] Go through Drive iOS source code and check the logic control flow
 - [x] Fix the function argument passing (using pointers)
-- [ ] Use proper AppVersion (we need to be friendly to the Proton servers)
-- [ ] Handle account with
+- [x] Handle account with
     - [x] multiple addresses
     - [x] multiple keys per addresses
-    - [ ] multiple shares 
 - [x] Update RClone's contribution.md file
 - [x] Remove delete all's hardcoded string
-- [ ] Address TODO and FIXME
-- [ ] Use CI to run integration tests
-- [ ] Some error handling from [here](https://github.com/ProtonMail/WebClients/blob/main/packages/shared/lib/drive/constants.ts) MAX_NAME_LENGTH, TIMEOUT
 - [x] Point to the right proton-go-api branch
     - [x] Run `go get github.com/henrybear327/go-proton-api@dev` to update go mod
 
@@ -115,16 +91,27 @@ Currently, the development are split into 2 versions. V1 supports the features [
 
 - Large file handling: for uploading, files will be loaded into the memory entirely, encrypted, and then chunked; for downloading, the file will be written when all blocks are decrypted and checked
 - Crypto-related operations, e.g. signature verification, still needs to cross check with iOS or web open source codebase 
-- No move for file and folders, thumbnails, respecting accepted MIME types, max upload size, can't init Proton Drive (coming in V2)
+- No thumbnails, respecting accepted MIME types, max upload size, can't init Proton Drive, etc.
 - Assumptions
     - only one main share per account
     - only operate on active links
 
 ## V2
 
-Moving files and folders are [features](https://github.com/rclone/rclone/blob/51a468b2bae4ca8e21760435211623a8199a9167/fs/features.go#L25)
-
+- [ ] Improve file searching function to use HMAC instead of just using string comparison
+- [ ] Remove e.g. proton.link related exposures in the function signature (this library should abstract them all)
+- [ ] Documentation
+- [ ] Go through Drive iOS source code and check the logic control flow
+- [ ] Use proper AppVersion (we need to be friendly to the Proton servers)
 - [ ] Figure out the bottleneck by doing some profiling 
+- [ ] Proper error handling by looking at the return code instead of the error string
+    - [ ] Duplicated folder name handling: 422: A file or folder with that name already exists (Code=2500, Status=422)
+    - [ ] Not found: ERROR RESTY 422: File or folder was not found. (Code=2501, Status=422), Attempt 1
+    - [ ] Failed upload: Draft already exists on this revision (Code=2500, Status=409)
+- [ ] File
+    - [ ] Improve large file handling
+    - [ ] Handle failed / interrupted upload
+    - [ ] [Filename encoding](https://github.com/ProtonMail/WebClients/blob/b4eba99d241af4fdae06ff7138bd651a40ef5d3c/applications/drive/src/app/store/_links/validation.ts#L51)
 - [ ] Folder
     - [ ] (Feature) Update (force overwrite)
     - [ ] (Feature) Move
@@ -133,6 +120,14 @@ Moving files and folders are [features](https://github.com/rclone/rclone/blob/51
 - [ ] Support thumbnail
 - [ ] Proton Drive init (no prior Proton Drive login before -> probably will have no key, volume, etc. to start with at all)
 - [ ] linkID caching -> would need to listen to the event api though
+- [ ] Integration tests
+    - [ ] Check file metadata
+    - [ ] Try to check if all functions are used at least once so we know if it's functioning or not
+- [ ] Handle accounts with multiple shares
+- [ ] Use CI to run integration tests
+- [ ] Some error handling from [here](https://github.com/ProtonMail/WebClients/blob/main/packages/shared/lib/drive/constants.ts) MAX_NAME_LENGTH, TIMEOUT
+- [ ] [Mimetype restrictions](https://github.com/ProtonMail/WebClients/blob/main/packages/shared/lib/drive/constants.ts#LL47C14-L47C42)
+- [ ] Address TODO and FIXME
 
 # Questions
 

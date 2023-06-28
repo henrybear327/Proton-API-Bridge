@@ -239,7 +239,7 @@ func (protonDrive *ProtonDrive) uploadAndCollectBlockData(ctx context.Context, n
 	}
 
 	// FIXME: handle partial upload (failed midway)
-	// FIXME: get block size
+	// FIXME: get block size from the server config instead of hardcoding it
 	blockSize := UPLOAD_BLOCK_SIZE
 	type PendingUploadBlocks struct {
 		blockUploadInfo proton.BlockUploadInfo

@@ -233,13 +233,17 @@ func TestCreateAndMoveAndDeleteAFileOneLevelFromRoot(t *testing.T) {
 	downloadFile(t, ctx, protonDrive, "src", "integrationTestImage.png", "testcase/integrationTestImage2.png", "")
 	checkFileListing(t, ctx, protonDrive, []string{"/src", "/src/integrationTestImage.png", "/dst"})
 
-	log.Println("Move folder src to under folder dst")
+	log.Println("Move file integrationTestImage.png to under folder dst")
 	moveFile(t, ctx, protonDrive, "integrationTestImage.png", "dst")
 	checkFileListing(t, ctx, protonDrive, []string{"/src", "/dst", "/dst/integrationTestImage.png"})
 
 	log.Println("Delete folder dst")
 	deleteBySearchingFromRoot(t, ctx, protonDrive, "dst", true)
 	checkFileListing(t, ctx, protonDrive, []string{"/src"})
+
+	log.Println("Delete folder src")
+	deleteBySearchingFromRoot(t, ctx, protonDrive, "src", true)
+	checkFileListing(t, ctx, protonDrive, []string{})
 }
 
 func TestUploadLargeNumberOfBlocks(t *testing.T) {
