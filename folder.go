@@ -167,8 +167,6 @@ func (protonDrive *ProtonDrive) CreateNewFolderByID(ctx context.Context, parentL
 }
 
 func (protonDrive *ProtonDrive) CreateNewFolder(ctx context.Context, parentLink *proton.Link, folderName string) (string, error) {
-	// TODO: check for duplicated folder name
-
 	parentNodeKR, err := protonDrive.getNodeKR(ctx, parentLink)
 	if err != nil {
 		return "", err
@@ -218,11 +216,11 @@ func (protonDrive *ProtonDrive) CreateNewFolder(ctx context.Context, parentLink 
 		return "", err
 	}
 
+	// if the folder name already exist, this call will return an error
 	createFolderResp, err := protonDrive.c.CreateFolder(ctx, protonDrive.MainShare.ShareID, createFolderReq)
 	if err != nil {
 		return "", err
 	}
-
 	// log.Printf("createFolderResp %#v", createFolderResp)
 
 	return createFolderResp.ID, nil

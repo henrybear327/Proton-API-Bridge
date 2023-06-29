@@ -36,7 +36,7 @@ func (protonDrive *ProtonDrive) MoveFolderToTrashByID(ctx context.Context, linkI
 		return ErrLinkTypeMustToBeFolderType
 	}
 
-	childrenLinks, err := protonDrive.c.ListChildren(ctx, protonDrive.MainShare.ShareID, linkID, false)
+	childrenLinks, err := protonDrive.c.ListChildren(ctx, protonDrive.MainShare.ShareID, linkID /* false: list only active ones */, false)
 	if err != nil {
 		return err
 	}

@@ -8,7 +8,6 @@ import (
 	"encoding/base64"
 	"io"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/ProtonMail/gopenpgp/v2/crypto"
@@ -31,7 +30,12 @@ func (protonDrive *ProtonDrive) DownloadFileByID(ctx context.Context, linkID str
 	return protonDrive.DownloadFile(ctx, &link)
 }
 
-func (protonDrive *ProtonDrive) GetActiveRevision(ctx context.Context, link *proton.Link) (*proton.Revision, error) {
+func (protonDrive *ProtonDrive) GetRevision(ctx context.Context, link *proton.Link, revisionType proton.RevisionState) (*proton.RevisionMetadata, error) {
+	if revisionType != proton.RevisionStateActive && revisionType != proton.RevisionStateDraft {
+		// since we can't return more than 1 revision, we only support active and draft types
+		return nil, ErrWrongGetRevisionUsage
+	}
+
 	revisions, err := protonDrive.c.ListRevisions(ctx, protonDrive.MainShare.ShareID, link.LinkID)
 	if err != nil {
 		return nil, err
@@ -39,21 +43,19 @@ func (protonDrive *ProtonDrive) GetActiveRevision(ctx context.Context, link *pro
 	// log.Printf("revisions %#v", revisions)
 
 	// Revisions are only for files, they represent “versions” of files.
-	// Each file can have 1 active revision and n obsolete revisions.
-	activeRevision := -1
+	// Each file can have 1 active/draft revision and n obsolete revisions.
+	targetRevision := -1
 	for i := range revisions {
-		if revisions[i].State == proton.RevisionStateActive {
-			activeRevision = i
+		if revisions[i].State == revisionType {
+			targetRevision = i
+			break
 		}
 	}
-
-	revision, err := protonDrive.c.GetRevisionAllBlocks(ctx, protonDrive.MainShare.ShareID, link.LinkID, revisions[activeRevision].ID)
-	if err != nil {
-		return nil, err
+	if targetRevision == -1 { // not found
+		return nil, nil
 	}
-	// log.Println("Total blocks", len(revision.Blocks))
 
-	return &revision, nil
+	return &revisions[targetRevision], nil
 }
 
 func (protonDrive *ProtonDrive) GetActiveRevisionWithAttrs(ctx context.Context, link *proton.Link) (*proton.Revision, *FileSystemAttrs, error) {
@@ -61,10 +63,16 @@ func (protonDrive *ProtonDrive) GetActiveRevisionWithAttrs(ctx context.Context, 
 		return nil, nil, ErrLinkMustNotBeNil
 	}
 
-	revision, err := protonDrive.GetActiveRevision(ctx, link)
+	revisionMetadata, err := protonDrive.GetRevision(ctx, link, proton.RevisionStateActive)
 	if err != nil {
 		return nil, nil, err
 	}
+
+	revision, err := protonDrive.c.GetRevisionAllBlocks(ctx, protonDrive.MainShare.ShareID, link.LinkID, revisionMetadata.ID)
+	if err != nil {
+		return nil, nil, err
+	}
+	// log.Println("Total blocks", len(revision.Blocks))
 
 	nodeKR, err := protonDrive.getNodeKR(ctx, link)
 	if err != nil {
@@ -81,7 +89,7 @@ func (protonDrive *ProtonDrive) GetActiveRevisionWithAttrs(ctx context.Context, 
 		return nil, nil, err
 	}
 
-	return revision, &FileSystemAttrs{
+	return &revision, &FileSystemAttrs{
 		ModificationTime: modificationTime,
 		Size:             revisionXAttrCommon.Size,
 	}, nil
@@ -133,16 +141,16 @@ func (protonDrive *ProtonDrive) DownloadFile(ctx context.Context, link *proton.L
 	return buffer.Bytes(), nil, nil
 }
 
-func (protonDrive *ProtonDrive) UploadFileByReader(ctx context.Context, parentLinkID string, filename string, modTime time.Time, file io.Reader) (*proton.Link, int64, error) {
+func (protonDrive *ProtonDrive) UploadFileByReader(ctx context.Context, parentLinkID string, filename string, modTime time.Time, file io.Reader, createFileOnly bool) (*proton.Link, int64, error) {
 	parentLink, err := protonDrive.c.GetLink(ctx, protonDrive.MainShare.ShareID, parentLinkID)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	return protonDrive.uploadFile(ctx, &parentLink, filename, modTime, file)
+	return protonDrive.uploadFile(ctx, &parentLink, filename, modTime, file, createFileOnly)
 }
 
-func (protonDrive *ProtonDrive) UploadFileByPath(ctx context.Context, parentLink *proton.Link, filename string, filePath string) (*proton.Link, int64, error) {
+func (protonDrive *ProtonDrive) UploadFileByPath(ctx context.Context, parentLink *proton.Link, filename string, filePath string, createFileOnly bool) (*proton.Link, int64, error) {
 	f, err := os.Open(filePath)
 	if err != nil {
 		return nil, 0, err
@@ -156,7 +164,7 @@ func (protonDrive *ProtonDrive) UploadFileByPath(ctx context.Context, parentLink
 
 	in := bufio.NewReader(f)
 
-	return protonDrive.uploadFile(ctx, parentLink, filename, info.ModTime(), in)
+	return protonDrive.uploadFile(ctx, parentLink, filename, info.ModTime(), in, createFileOnly)
 }
 
 func (protonDrive *ProtonDrive) createFileUploadDraft(ctx context.Context, parentLink *proton.Link, filename string, modTime time.Time, mimeType string) (*proton.Link, *proton.CreateFileRes, *crypto.SessionKey, *crypto.KeyRing, error) {
@@ -215,17 +223,14 @@ func (protonDrive *ProtonDrive) createFileUploadDraft(ctx context.Context, paren
 
 	createFileResp, err := protonDrive.c.CreateFile(ctx, protonDrive.MainShare.ShareID, createFileReq)
 	if err != nil {
-		// FIXME: check for duplicated filename by using checkAvailableHashes
-		// FIXME: better error handling
-		// 422: A file or folder with that name already exists (Code=2500, Status=422)
-		if strings.Contains(err.Error(), "(Code=2500, Status=422)") {
-			// file name conflict, file already exists
-			link, err := protonDrive.SearchByNameInFolder(ctx, parentLink, filename, true, false)
+		if err == proton.ErrFileNameExist { // FIXME: check for duplicated filename by relying on checkAvailableHashes
+			link, err := protonDrive.SearchByNameInFolder(ctx, parentLink, filename, true, false, true) // we search for everything with the requested name in the folder
 			if err != nil {
 				return nil, nil, nil, nil, err
 			}
 			return link, nil, nil, nil, nil
 		}
+
 		// other real error caught
 		return nil, nil, nil, nil, err
 	}
@@ -327,7 +332,6 @@ func (protonDrive *ProtonDrive) uploadAndCollectBlockData(ctx context.Context, n
 }
 
 func (protonDrive *ProtonDrive) commitNewRevision(ctx context.Context, nodeKR *crypto.KeyRing, modificationTime time.Time, size int64, manifestSignatureData []byte, blockTokens []proton.BlockToken, linkID, revisionID string) error {
-	// TODO: check iOS Drive CommitableRevision
 	manifestSignature, err := protonDrive.AddrKR.SignDetached(crypto.NewPlainMessage(manifestSignatureData))
 	if err != nil {
 		return err
@@ -356,11 +360,13 @@ func (protonDrive *ProtonDrive) commitNewRevision(ctx context.Context, nodeKR *c
 	return nil
 }
 
-func (protonDrive *ProtonDrive) uploadFile(ctx context.Context, parentLink *proton.Link, filename string, modTime time.Time, file io.Reader) (*proton.Link, int64, error) {
+func (protonDrive *ProtonDrive) uploadFile(ctx context.Context, parentLink *proton.Link, filename string, modTime time.Time, file io.Reader, createFileOnly bool) (*proton.Link, int64, error) {
 	// FIXME: check iOS: optimize for large files -> enc blocks on the fly
 	// main issue lies in the mimetype detection, since a full readout is used
 
 	// detect MIME type
+	// FIXME: use https://pkg.go.dev/mime#ExtensionsByType
+	// FIXME: this will cause the upload progress to display the "fake" progress
 	fileContent, err := io.ReadAll(file)
 	if err != nil {
 		return nil, 0, err
@@ -383,13 +389,33 @@ func (protonDrive *ProtonDrive) uploadFile(ctx context.Context, parentLink *prot
 	if link != nil {
 		linkID = link.LinkID
 
-		// get a new revision
-		newRevision, err := protonDrive.c.CreateRevision(ctx, protonDrive.MainShare.ShareID, linkID)
+		draftRevision, err := protonDrive.GetRevision(ctx, link, proton.RevisionStateDraft)
 		if err != nil {
 			return nil, 0, err
 		}
+		if draftRevision != nil {
+			if protonDrive.Config.ReplaceExistingDraft {
+				// FIXME: double check if this is the correct way of handling this case
+				// FIXME: how do we observe for file upload cancellation
+				revisionID = draftRevision.ID
+			} else {
+				// if there is a draft, based on the web behavior, it will ask if the user wants to replace the failed upload attempt
+				// current behavior, we report an error to not upload the file (conservative)
+				return nil, 0, ErrDraftExists
+			}
+		} else {
+			// get a new revision
+			newRevision, err := protonDrive.c.CreateRevision(ctx, protonDrive.MainShare.ShareID, linkID)
+			if err != nil {
+				if err == proton.ErrFileCanNotBeFound {
+					// Can happen when trying to create a revision on a file without an active revision
+					return nil, 0, err
+				}
+				return nil, 0, err
+			}
 
-		revisionID = newRevision.ID
+			revisionID = newRevision.ID
+		}
 
 		// get newSessionKey and newNodeKR
 		parentNodeKR, err := protonDrive.getNodeKRByID(ctx, link.ParentLinkID)
@@ -408,33 +434,35 @@ func (protonDrive *ProtonDrive) uploadFile(ctx context.Context, parentLink *prot
 		linkID = createFileResp.ID
 		revisionID = createFileResp.RevisionID
 	} else {
-		// might be the case where the upload failed, since file search will not include file with type draft
+		// should not happen anymore, since the file search will include the draft now
 		return nil, 0, ErrInternalErrorOnFileUpload
 	}
 
+	/* step 2: upload blocks and collect block data */
+	manifestSignature := make([]byte, 0)
+	blockTokens := make([]proton.BlockToken, 0)
 	if fileSize == 0 {
-		/* step 2: upload blocks and collect block data */
 		// skipped: no block to upload
-
-		/* step 3: mark the file as active by updating the revision */
-		manifestSignature := make([]byte, 0)
-		blockTokens := make([]proton.BlockToken, 0)
-		err = protonDrive.commitNewRevision(ctx, newNodeKR, modTime, fileSize, manifestSignature, blockTokens, linkID, revisionID)
-		if err != nil {
-			return nil, 0, err
-		}
 	} else {
-		/* step 2: upload blocks and collect block data */
-		manifestSignatureData, blockTokens, err := protonDrive.uploadAndCollectBlockData(ctx, newSessionKey, newNodeKR, fileContent, linkID, revisionID)
+		manifestSignature, blockTokens, err = protonDrive.uploadAndCollectBlockData(ctx, newSessionKey, newNodeKR, fileContent, linkID, revisionID)
 		if err != nil {
 			return nil, 0, err
 		}
+	}
 
-		/* step 3: mark the file as active by updating the revision */
-		err = protonDrive.commitNewRevision(ctx, newNodeKR, modTime, fileSize, manifestSignatureData, blockTokens, linkID, revisionID)
+	if createFileOnly {
+		// we try to simulate only draft is created but no upload is performed yet
+		finalLink, err := protonDrive.c.GetLink(ctx, protonDrive.MainShare.ShareID, linkID)
 		if err != nil {
 			return nil, 0, err
 		}
+		return &finalLink, fileSize, nil
+	}
+
+	/* step 3: mark the file as active by updating the revision */
+	err = protonDrive.commitNewRevision(ctx, newNodeKR, modTime, fileSize, manifestSignature, blockTokens, linkID, revisionID)
+	if err != nil {
+		return nil, 0, err
 	}
 
 	finalLink, err := protonDrive.c.GetLink(ctx, protonDrive.MainShare.ShareID, linkID)

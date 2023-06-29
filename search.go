@@ -11,17 +11,17 @@ import (
 Observation: file name is unique, since it's checked (by hash) on the server
 */
 
-func (protonDrive *ProtonDrive) SearchByNameRecursivelyFromRoot(ctx context.Context, targetName string, isFolder bool) (*proton.Link, error) {
+func (protonDrive *ProtonDrive) SearchByNameRecursivelyFromRoot(ctx context.Context, targetName string, isFolder bool, listAllActiveOrDraftFiles bool) (*proton.Link, error) {
 	var linkType proton.LinkType
 	if isFolder {
 		linkType = proton.LinkTypeFolder
 	} else {
 		linkType = proton.LinkTypeFile
 	}
-	return protonDrive.searchByNameRecursively(ctx, protonDrive.MainShareKR, protonDrive.RootLink, targetName, linkType)
+	return protonDrive.searchByNameRecursively(ctx, protonDrive.MainShareKR, protonDrive.RootLink, targetName, linkType, listAllActiveOrDraftFiles)
 }
 
-func (protonDrive *ProtonDrive) SearchByNameRecursivelyByID(ctx context.Context, folderLinkID string, targetName string, isFolder bool) (*proton.Link, error) {
+func (protonDrive *ProtonDrive) SearchByNameRecursivelyByID(ctx context.Context, folderLinkID string, targetName string, isFolder bool, listAllActiveOrDraftFiles bool) (*proton.Link, error) {
 	folderLink, err := protonDrive.c.GetLink(ctx, protonDrive.MainShare.ShareID, folderLinkID)
 	if err != nil {
 		return nil, err
@@ -41,10 +41,10 @@ func (protonDrive *ProtonDrive) SearchByNameRecursivelyByID(ctx context.Context,
 	if err != nil {
 		return nil, err
 	}
-	return protonDrive.searchByNameRecursively(ctx, folderKeyRing, &folderLink, targetName, linkType)
+	return protonDrive.searchByNameRecursively(ctx, folderKeyRing, &folderLink, targetName, linkType, listAllActiveOrDraftFiles)
 }
 
-func (protonDrive *ProtonDrive) SearchByNameRecursively(ctx context.Context, folderLink *proton.Link, targetName string, isFolder bool) (*proton.Link, error) {
+func (protonDrive *ProtonDrive) SearchByNameRecursively(ctx context.Context, folderLink *proton.Link, targetName string, isFolder bool, listAllActiveOrDraftFiles bool) (*proton.Link, error) {
 	var linkType proton.LinkType
 	if isFolder {
 		linkType = proton.LinkTypeFolder
@@ -59,7 +59,7 @@ func (protonDrive *ProtonDrive) SearchByNameRecursively(ctx context.Context, fol
 	if err != nil {
 		return nil, err
 	}
-	return protonDrive.searchByNameRecursively(ctx, folderKeyRing, folderLink, targetName, linkType)
+	return protonDrive.searchByNameRecursively(ctx, folderKeyRing, folderLink, targetName, linkType, listAllActiveOrDraftFiles)
 }
 
 func (protonDrive *ProtonDrive) searchByNameRecursively(
@@ -67,12 +67,13 @@ func (protonDrive *ProtonDrive) searchByNameRecursively(
 	parentNodeKR *crypto.KeyRing,
 	link *proton.Link,
 	targetName string,
-	linkType proton.LinkType) (*proton.Link, error) {
-	/*
-		Assumptions:
-		- we only care about the active ones
-	*/
-	if link.State != proton.LinkStateActive {
+	linkType proton.LinkType,
+	listAllActiveOrDraftFiles bool) (*proton.Link, error) {
+	if listAllActiveOrDraftFiles {
+		if link.State != proton.LinkStateActive && link.State != proton.LinkStateDraft {
+			return nil, nil
+		}
+	} else if link.State != proton.LinkStateActive {
 		return nil, nil
 	}
 
@@ -100,7 +101,7 @@ func (protonDrive *ProtonDrive) searchByNameRecursively(
 		defer linkKR.ClearPrivateParams()
 
 		for _, childLink := range childrenLinks {
-			ret, err := protonDrive.searchByNameRecursively(ctx, linkKR, &childLink, targetName, linkType)
+			ret, err := protonDrive.searchByNameRecursively(ctx, linkKR, &childLink, targetName, linkType, listAllActiveOrDraftFiles)
 			if err != nil {
 				return nil, err
 			}
@@ -118,20 +119,20 @@ func (protonDrive *ProtonDrive) searchByNameRecursively(
 func (protonDrive *ProtonDrive) SearchByNameInFolderByID(ctx context.Context,
 	folderLinkID string,
 	targetName string,
-	searchForFile, searchForFolder bool) (*proton.Link, error) {
+	searchForFile, searchForFolder, listAllActiveOrDraftFiles bool) (*proton.Link, error) {
 	folderLink, err := protonDrive.c.GetLink(ctx, protonDrive.MainShare.ShareID, folderLinkID)
 	if err != nil {
 		return nil, err
 	}
 
-	return protonDrive.SearchByNameInFolder(ctx, &folderLink, targetName, searchForFile, searchForFolder)
+	return protonDrive.SearchByNameInFolder(ctx, &folderLink, targetName, searchForFile, searchForFolder, listAllActiveOrDraftFiles)
 }
 
 func (protonDrive *ProtonDrive) SearchByNameInFolder(
 	ctx context.Context,
 	folderLink *proton.Link,
 	targetName string,
-	searchForFile, searchForFolder bool) (*proton.Link, error) {
+	searchForFile, searchForFolder, listAllActiveOrDraftFiles bool) (*proton.Link, error) {
 	if !searchForFile && !searchForFolder {
 		// nothing to search
 		return nil, nil
@@ -140,6 +141,11 @@ func (protonDrive *ProtonDrive) SearchByNameInFolder(
 	// we search all folders and files within this designated folder only
 	if folderLink.Type != proton.LinkTypeFolder {
 		return nil, ErrLinkTypeMustToBeFolderType
+	}
+
+	if folderLink.State != proton.LinkStateActive {
+		// we only search in the active folders
+		return nil, nil
 	}
 
 	parentNodeKR, err := protonDrive.getNodeKRByID(ctx, folderLink.ParentLinkID)
@@ -159,8 +165,11 @@ func (protonDrive *ProtonDrive) SearchByNameInFolder(
 		return nil, err
 	}
 	for _, childLink := range childrenLinks {
-		if childLink.State != proton.LinkStateActive {
-			// we only search in the active folders
+		if listAllActiveOrDraftFiles {
+			if childLink.State != proton.LinkStateActive && childLink.State != proton.LinkStateDraft {
+				continue
+			}
+		} else if childLink.State != proton.LinkStateActive {
 			continue
 		}
 
