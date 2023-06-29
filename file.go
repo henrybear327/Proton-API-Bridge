@@ -240,6 +240,7 @@ func (protonDrive *ProtonDrive) uploadAndCollectBlockData(ctx context.Context, n
 
 	// FIXME: handle partial upload (failed midway)
 	// FIXME: get block size from the server config instead of hardcoding it
+	// FIXME: improve memory management
 	blockSize := UPLOAD_BLOCK_SIZE
 	type PendingUploadBlocks struct {
 		blockUploadInfo proton.BlockUploadInfo
@@ -248,11 +249,12 @@ func (protonDrive *ProtonDrive) uploadAndCollectBlockData(ctx context.Context, n
 	blocks := make([]PendingUploadBlocks, 0)
 	manifestSignatureData := make([]byte, 0)
 
-	for i := 0; i*blockSize < len(fileContent); i++ {
+	fileLength := len(fileContent)
+	for i := 0; i*blockSize < fileLength; i++ {
 		// encrypt data
 		upperBound := (i + 1) * blockSize
-		if upperBound > len(fileContent) {
-			upperBound = len(fileContent)
+		if upperBound > fileLength {
+			upperBound = fileLength
 		}
 		data := fileContent[i*blockSize : upperBound]
 

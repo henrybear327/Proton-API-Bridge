@@ -3,12 +3,14 @@ package common
 import "os"
 
 type Config struct {
+	/* Constants */
+	AppVersion string
+
 	/* Login */
 	FirstLoginCredential *FirstLoginCredentialData
 	ReusableCredential   *ReusableCredentialData
 	UseReusableLogin     bool
 	CredentialCacheFile  string // If CredentialCacheFile is empty, no credential will be logged
-	RefreshAccessToken   bool
 
 	/* Setting */
 	DestructiveIntegrationTest     bool // CAUTION: the integration test requires a clean proton drive
@@ -33,7 +35,8 @@ type ReusableCredentialData struct {
 
 func NewConfigWithDefaultValues() *Config {
 	return &Config{
-		// login
+		AppVersion: "",
+
 		FirstLoginCredential: &FirstLoginCredentialData{
 			Username: "",
 			Password: "",
@@ -47,7 +50,6 @@ func NewConfigWithDefaultValues() *Config {
 		},
 		UseReusableLogin:    false,
 		CredentialCacheFile: "",
-		RefreshAccessToken:  false,
 
 		DestructiveIntegrationTest:     false,
 		EmptyTrashAfterIntegrationTest: false,
@@ -57,6 +59,7 @@ func NewConfigWithDefaultValues() *Config {
 }
 
 func NewConfigForIntegrationTests() *Config {
+	appVersion := os.Getenv("PROTON_API_BRIDGE_APP_VERSION")
 	username := os.Getenv("PROTON_API_BRIDGE_TEST_USERNAME")
 	password := os.Getenv("PROTON_API_BRIDGE_TEST_PASSWORD")
 	twoFA := os.Getenv("PROTON_API_BRIDGE_TEST_TWOFA")
@@ -73,6 +76,8 @@ func NewConfigForIntegrationTests() *Config {
 	saltedKeyPass := os.Getenv("PROTON_API_BRIDGE_TEST_SALTEDKEYPASS")
 
 	return &Config{
+		AppVersion: appVersion,
+
 		FirstLoginCredential: &FirstLoginCredentialData{
 			Username: username,
 			Password: password,
@@ -86,7 +91,6 @@ func NewConfigForIntegrationTests() *Config {
 		},
 		UseReusableLogin:    useReusableLogin,
 		CredentialCacheFile: ".credential",
-		RefreshAccessToken:  false,
 
 		DestructiveIntegrationTest:     true,
 		EmptyTrashAfterIntegrationTest: true,

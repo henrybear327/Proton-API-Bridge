@@ -86,6 +86,7 @@ V2 will bring in optimizations and enhancements, such as optimizing uploading an
 - [x] Remove delete all's hardcoded string
 - [x] Point to the right proton-go-api branch
     - [x] Run `go get github.com/henrybear327/go-proton-api@dev` to update go mod
+- [x] Pass in AppVersion as a config option
 
 ### Known limitations
 
@@ -102,7 +103,6 @@ V2 will bring in optimizations and enhancements, such as optimizing uploading an
 - [ ] Remove e.g. proton.link related exposures in the function signature (this library should abstract them all)
 - [ ] Documentation
 - [ ] Go through Drive iOS source code and check the logic control flow
-- [ ] Use proper AppVersion (we need to be friendly to the Proton servers)
 - [ ] Figure out the bottleneck by doing some profiling 
 - [ ] Proper error handling by looking at the return code instead of the error string
     - [ ] Duplicated folder name handling: 422: A file or folder with that name already exists (Code=2500, Status=422)

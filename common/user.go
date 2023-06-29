@@ -48,28 +48,14 @@ func Login(ctx context.Context, config *Config) (*proton.Manager, *proton.Client
 	var addr []proton.Address
 
 	// get manager
-	m := getProtonManager()
+	m := getProtonManager(config.AppVersion)
 
 	if config.UseReusableLogin {
-		/*
-			Using NewClientWithRefresh so the credential can last longer,
-			as each run of the program will trigger a access token refresh
-		*/
-		var err error
-		if config.RefreshAccessToken {
-			c, auth, err = m.NewClientWithRefresh(ctx, config.ReusableCredential.UID, config.ReusableCredential.RefreshToken)
-			if err != nil {
-				return nil, nil, nil, nil, nil, err
-			}
+		c = m.NewClient(config.ReusableCredential.UID, config.ReusableCredential.AccessToken, config.ReusableCredential.RefreshToken)
 
-			config.ReusableCredential.UID = auth.UID
-			config.ReusableCredential.AccessToken = auth.AccessToken
-			config.ReusableCredential.RefreshToken = auth.RefreshToken
-		} else {
-			c = m.NewClient(config.ReusableCredential.UID, config.ReusableCredential.AccessToken, config.ReusableCredential.RefreshToken)
-		}
+		// TODO: register auth/deauth handler
 
-		err = cacheCredentialToFile(config)
+		err := cacheCredentialToFile(config)
 		if err != nil {
 			return nil, nil, nil, nil, nil, err
 		}
