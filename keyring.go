@@ -10,7 +10,7 @@ import (
 func (protonDrive *ProtonDrive) getNodeKRByID(ctx context.Context, linkID string) (*crypto.KeyRing, error) {
 	if linkID == "" {
 		// most likely someone requested parent link, which happen to be ""
-		return protonDrive.MainShareKR, nil
+		return protonDrive.MainShareKR.Copy() // we need to return a deep copy since the keyring will be freed by the caller when it finishes using the keyring
 	}
 
 	link, err := protonDrive.c.GetLink(ctx, protonDrive.MainShare.ShareID, linkID)
