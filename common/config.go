@@ -5,6 +5,7 @@ import "os"
 type Config struct {
 	/* Constants */
 	AppVersion string
+	UserAgent  string
 
 	/* Login */
 	FirstLoginCredential *FirstLoginCredentialData
@@ -37,6 +38,7 @@ type ReusableCredentialData struct {
 func NewConfigWithDefaultValues() *Config {
 	return &Config{
 		AppVersion: "",
+		UserAgent:  "",
 
 		FirstLoginCredential: &FirstLoginCredentialData{
 			Username: "",
@@ -62,6 +64,8 @@ func NewConfigWithDefaultValues() *Config {
 
 func NewConfigForIntegrationTests() *Config {
 	appVersion := os.Getenv("PROTON_API_BRIDGE_APP_VERSION")
+	userAgent := os.Getenv("PROTON_API_BRIDGE_USER_AGENT")
+
 	username := os.Getenv("PROTON_API_BRIDGE_TEST_USERNAME")
 	password := os.Getenv("PROTON_API_BRIDGE_TEST_PASSWORD")
 	twoFA := os.Getenv("PROTON_API_BRIDGE_TEST_TWOFA")
@@ -79,6 +83,7 @@ func NewConfigForIntegrationTests() *Config {
 
 	return &Config{
 		AppVersion: appVersion,
+		UserAgent:  userAgent,
 
 		FirstLoginCredential: &FirstLoginCredentialData{
 			Username: username,

@@ -48,7 +48,7 @@ func Login(ctx context.Context, config *Config) (*proton.Manager, *proton.Client
 	var addr []proton.Address
 
 	// get manager
-	m := getProtonManager(config.AppVersion)
+	m := getProtonManager(config.AppVersion, config.UserAgent)
 
 	if config.UseReusableLogin {
 		c = m.NewClient(config.ReusableCredential.UID, config.ReusableCredential.AccessToken, config.ReusableCredential.RefreshToken)
@@ -81,6 +81,7 @@ func Login(ctx context.Context, config *Config) (*proton.Manager, *proton.Client
 		if err != nil {
 			return nil, nil, nil, nil, nil, err
 		}
+		// log.Printf("Available scopes %#v", auth.Scope)
 
 		if auth.TwoFA.Enabled&proton.HasTOTP != 0 {
 			if config.FirstLoginCredential.TwoFA != "" {
