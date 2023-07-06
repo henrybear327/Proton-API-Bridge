@@ -7,11 +7,13 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"io"
+	"log"
+	"mime"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/ProtonMail/gopenpgp/v2/crypto"
-	"github.com/gabriel-vasile/mimetype"
 	"github.com/henrybear327/go-proton-api"
 	"github.com/relvacode/iso8601"
 )
@@ -238,44 +240,50 @@ func (protonDrive *ProtonDrive) createFileUploadDraft(ctx context.Context, paren
 	return nil, &createFileResp, newSessionKey, newNodeKR, nil
 }
 
-func (protonDrive *ProtonDrive) uploadAndCollectBlockData(ctx context.Context, newSessionKey *crypto.SessionKey, newNodeKR *crypto.KeyRing, fileContent []byte, linkID, revisionID string) ([]byte, []proton.BlockToken, error) {
-	if newSessionKey == nil || newNodeKR == nil {
-		return nil, nil, ErrMissingInputUploadAndCollectBlockData
-	}
-
-	// FIXME: handle partial upload (failed midway)
-	// FIXME: get block size from the server config instead of hardcoding it
-	// FIXME: improve memory management
-	blockSize := UPLOAD_BLOCK_SIZE
+func (protonDrive *ProtonDrive) uploadAndCollectBlockData(ctx context.Context, newSessionKey *crypto.SessionKey, newNodeKR *crypto.KeyRing, file io.Reader, linkID, revisionID string) ([]byte, []proton.BlockToken, int64, error) {
 	type PendingUploadBlocks struct {
 		blockUploadInfo proton.BlockUploadInfo
 		encData         []byte
 	}
+
+	if newSessionKey == nil || newNodeKR == nil {
+		return nil, nil, 0, ErrMissingInputUploadAndCollectBlockData
+	}
+
+	totalFileSize := int64(0)
+
 	blocks := make([]PendingUploadBlocks, 0)
 	manifestSignatureData := make([]byte, 0)
-
-	fileLength := len(fileContent)
-	for i := 0; i*blockSize < fileLength; i++ {
-		// encrypt data
-		upperBound := (i + 1) * blockSize
-		if upperBound > fileLength {
-			upperBound = fileLength
+	for i := 1; ; i++ {
+		// read at most data of size UPLOAD_BLOCK_SIZE
+		data := make([]byte, UPLOAD_BLOCK_SIZE) // FIXME: get block size from the server config instead of hardcoding it
+		readBytes, err := file.Read(data)
+		if err != nil {
+			if err == io.EOF {
+				if readBytes > 0 {
+					log.Fatalln("We have a problem in the assumption")
+				}
+				break
+			}
+			return nil, nil, 0, err
 		}
-		data := fileContent[i*blockSize : upperBound]
+		data = data[:readBytes]
+		totalFileSize += int64(readBytes)
 
+		// encrypt data
 		dataPlainMessage := crypto.NewPlainMessage(data)
 		encData, err := newSessionKey.Encrypt(dataPlainMessage)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, 0, err
 		}
 
 		encSignature, err := protonDrive.AddrKR.SignDetachedEncrypted(dataPlainMessage, newNodeKR)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, 0, err
 		}
 		encSignatureStr, err := encSignature.GetArmored()
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, 0, err
 		}
 
 		h := sha256.New()
@@ -283,13 +291,13 @@ func (protonDrive *ProtonDrive) uploadAndCollectBlockData(ctx context.Context, n
 		hash := h.Sum(nil)
 		base64Hash := base64.StdEncoding.EncodeToString(hash)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, 0, err
 		}
 		manifestSignatureData = append(manifestSignatureData, hash...)
 
 		blocks = append(blocks, PendingUploadBlocks{
 			blockUploadInfo: proton.BlockUploadInfo{
-				Index:        i + 1, // iOS drive: BE starts with 1
+				Index:        i, // iOS drive: BE starts with 1
 				Size:         int64(len(encData)),
 				EncSignature: encSignatureStr,
 				Hash:         base64Hash,
@@ -298,11 +306,15 @@ func (protonDrive *ProtonDrive) uploadAndCollectBlockData(ctx context.Context, n
 		})
 	}
 
+	blockTokens := make([]proton.BlockToken, 0)
+	if len(blocks) == 0 {
+		return manifestSignatureData, blockTokens, 0, nil
+	}
+
 	blockList := make([]proton.BlockUploadInfo, 0)
-	for i := 0; i < len(blocks); i++ {
+	for i := range blocks {
 		blockList = append(blockList, blocks[i].blockUploadInfo)
 	}
-	blockTokens := make([]proton.BlockToken, 0)
 	blockUploadReq := proton.BlockUploadReq{
 		AddressID:  protonDrive.MainShare.AddressID,
 		ShareID:    protonDrive.MainShare.ShareID,
@@ -313,13 +325,13 @@ func (protonDrive *ProtonDrive) uploadAndCollectBlockData(ctx context.Context, n
 	}
 	blockUploadResp, err := protonDrive.c.RequestBlockUpload(ctx, blockUploadReq)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, 0, err
 	}
 
 	for i := range blockUploadResp {
 		err := protonDrive.c.UploadBlock(ctx, blockUploadResp[i].BareURL, blockUploadResp[i].Token, bytes.NewReader(blocks[i].encData))
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, 0, err
 		}
 
 		blockTokens = append(blockTokens, proton.BlockToken{
@@ -328,7 +340,7 @@ func (protonDrive *ProtonDrive) uploadAndCollectBlockData(ctx context.Context, n
 		})
 	}
 
-	return manifestSignatureData, blockTokens, nil
+	return manifestSignatureData, blockTokens, totalFileSize, nil
 }
 
 func (protonDrive *ProtonDrive) commitNewRevision(ctx context.Context, nodeKR *crypto.KeyRing, modificationTime time.Time, size int64, manifestSignatureData []byte, blockTokens []proton.BlockToken, linkID, revisionID string) error {
@@ -361,21 +373,14 @@ func (protonDrive *ProtonDrive) commitNewRevision(ctx context.Context, nodeKR *c
 }
 
 func (protonDrive *ProtonDrive) uploadFile(ctx context.Context, parentLink *proton.Link, filename string, modTime time.Time, file io.Reader, createFileOnly bool) (*proton.Link, int64, error) {
-	// FIXME: check iOS: optimize for large files -> enc blocks on the fly
-	// main issue lies in the mimetype detection, since a full readout is used
+	// TODO: if we should use github.com/gabriel-vasile/mimetype to detect the MIME type from the file content itself
+	// Note: this approach might cause the upload progress to display the "fake" progress, since we read in all the content all-at-once
+	// mimetype.SetLimit(0)
+	// mType := mimetype.Detect(fileContent)
+	// mimeType := mType.String()
 
-	// detect MIME type
-	// FIXME: use https://pkg.go.dev/mime#ExtensionsByType
-	// FIXME: this will cause the upload progress to display the "fake" progress
-	fileContent, err := io.ReadAll(file)
-	if err != nil {
-		return nil, 0, err
-	}
-	fileSize := int64(len(fileContent))
-
-	mimetype.SetLimit(0)
-	mType := mimetype.Detect(fileContent)
-	mimeType := mType.String()
+	// detect MIME type by looking at the filename only
+	mimeType := mime.TypeByExtension(filepath.Ext(filename))
 
 	/* step 1: create a draft */
 	link, createFileResp, newSessionKey, newNodeKR, err := protonDrive.createFileUploadDraft(ctx, parentLink, filename, modTime, mimeType)
@@ -396,7 +401,8 @@ func (protonDrive *ProtonDrive) uploadFile(ctx context.Context, parentLink *prot
 		if draftRevision != nil {
 			if protonDrive.Config.ReplaceExistingDraft {
 				// FIXME: double check if this is the correct way of handling this case
-				// FIXME: how do we observe for file upload cancellation
+				// -> delete the draft revision before progressing since we don't maintain clientUID
+				// Question: how do we observe for file upload cancellation -> clientUID?
 				revisionID = draftRevision.ID
 			} else {
 				// if there is a draft, based on the web behavior, it will ask if the user wants to replace the failed upload attempt
@@ -439,15 +445,9 @@ func (protonDrive *ProtonDrive) uploadFile(ctx context.Context, parentLink *prot
 	}
 
 	/* step 2: upload blocks and collect block data */
-	manifestSignature := make([]byte, 0)
-	blockTokens := make([]proton.BlockToken, 0)
-	if fileSize == 0 {
-		// skipped: no block to upload
-	} else {
-		manifestSignature, blockTokens, err = protonDrive.uploadAndCollectBlockData(ctx, newSessionKey, newNodeKR, fileContent, linkID, revisionID)
-		if err != nil {
-			return nil, 0, err
-		}
+	manifestSignature, blockTokens, fileSize, err := protonDrive.uploadAndCollectBlockData(ctx, newSessionKey, newNodeKR, file, linkID, revisionID)
+	if err != nil {
+		return nil, 0, err
 	}
 
 	if createFileOnly {

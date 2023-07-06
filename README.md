@@ -104,7 +104,8 @@ V2 will bring in optimizations and enhancements, such as optimizing uploading an
 ## V2
 
 - [ ] Confirm the HMAC algorithm -> if you create a draft using integration test, and then use the web frontend to finish the upload (you will see overwrite pop-up), and then use the web frontend to upload again the same file, but this time you will have 2 files with duplicated names
-- [ ] Fix file upload progress -> If the upload failed, please Replace file. If the upload is still in progress, replacing it will cancel the ongoing upload.
+- [ ] Fix file upload progress -> If the upload failed, please Replace file. If the upload is still in progress, replacing it will cancel the ongoing upload
+- [ ] Mimetype detection by [using the file content itself](github.com/gabriel-vasile/mimetype)
 - [ ] Improve file searching function to use HMAC instead of just using string comparison
 - [ ] Remove e.g. proton.link related exposures in the function signature (this library should abstract them all)
 - [ ] Documentation

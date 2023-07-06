@@ -287,9 +287,9 @@ func TestUploadLargeNumberOfBlocks(t *testing.T) {
 	UPLOAD_BLOCK_SIZE = 10
 
 	filename := "fileContent.txt"
-	file1Content := RandomString(UPLOAD_BLOCK_SIZE * blocks)
+	file1Content := RandomString(UPLOAD_BLOCK_SIZE*blocks + 1) // intentionally make the data not aligned to a block
 	file1ContentReader := strings.NewReader(file1Content)
-	file2Content := RandomString(UPLOAD_BLOCK_SIZE * blocks)
+	file2Content := RandomString(UPLOAD_BLOCK_SIZE*blocks + 5)
 	file2ContentReader := strings.NewReader(file2Content)
 
 	log.Println("Upload fileContent.txt")
