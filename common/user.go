@@ -11,6 +11,13 @@ import (
 	"github.com/henrybear327/go-proton-api"
 )
 
+type ProtonDriveCredential struct {
+	UID           string
+	AccessToken   string
+	RefreshToken  string
+	SaltedKeyPass string
+}
+
 func cacheCredentialToFile(config *Config) error {
 	if config.CredentialCacheFile != "" {
 		str, err := json.Marshal(config.ReusableCredential)
@@ -40,7 +47,7 @@ Log in methods
 Keyring decryption
 The password will be salted, and then used to decrypt the keyring. The salted password needs to be and can be cached, so the keyring can be re-decrypted when needed
 */
-func Login(ctx context.Context, config *Config) (*proton.Manager, *proton.Client, *crypto.KeyRing, map[string]*crypto.KeyRing, []proton.Address, error) {
+func Login(ctx context.Context, config *Config) (*proton.Manager, *proton.Client, *ProtonDriveCredential, *crypto.KeyRing, map[string]*crypto.KeyRing, []proton.Address, error) {
 	var c *proton.Client
 	var auth proton.Auth
 	var userKR *crypto.KeyRing
@@ -57,29 +64,31 @@ func Login(ctx context.Context, config *Config) (*proton.Manager, *proton.Client
 
 		err := cacheCredentialToFile(config)
 		if err != nil {
-			return nil, nil, nil, nil, nil, err
+			return nil, nil, nil, nil, nil, nil, err
 		}
 
 		SaltedKeyPassByteArr, err := base64.StdEncoding.DecodeString(config.ReusableCredential.SaltedKeyPass)
 		if err != nil {
-			return nil, nil, nil, nil, nil, err
+			return nil, nil, nil, nil, nil, nil, err
 		}
 		userKR, addrKRs, addr, _, err = getAccountKRs(ctx, c, nil, SaltedKeyPassByteArr)
 		if err != nil {
-			return nil, nil, nil, nil, nil, err
+			return nil, nil, nil, nil, nil, nil, err
 		}
+
+		return m, c, nil, userKR, addrKRs, addr, nil
 	} else {
 		username := config.FirstLoginCredential.Username
 		password := config.FirstLoginCredential.Password
 		if username == "" || password == "" {
-			return nil, nil, nil, nil, nil, ErrUsernameAndPasswordRequired
+			return nil, nil, nil, nil, nil, nil, ErrUsernameAndPasswordRequired
 		}
 
 		// perform login
 		var err error
 		c, auth, err = m.NewClientWithLogin(ctx, username, []byte(password))
 		if err != nil {
-			return nil, nil, nil, nil, nil, err
+			return nil, nil, nil, nil, nil, nil, err
 		}
 		// log.Printf("Available scopes %#v", auth.Scope)
 
@@ -89,10 +98,10 @@ func Login(ctx context.Context, config *Config) (*proton.Manager, *proton.Client
 					TwoFactorCode: config.FirstLoginCredential.TwoFA,
 				})
 				if err != nil {
-					return nil, nil, nil, nil, nil, err
+					return nil, nil, nil, nil, nil, nil, err
 				}
 			} else {
-				return nil, nil, nil, nil, nil, Err2FACodeRequired
+				return nil, nil, nil, nil, nil, nil, Err2FACodeRequired
 			}
 		}
 
@@ -100,7 +109,7 @@ func Login(ctx context.Context, config *Config) (*proton.Manager, *proton.Client
 		var saltedKeyPassByteArr []byte
 		userKR, addrKRs, addr, saltedKeyPassByteArr, err = getAccountKRs(ctx, c, []byte(password), nil)
 		if err != nil {
-			return nil, nil, nil, nil, nil, err
+			return nil, nil, nil, nil, nil, nil, err
 		}
 
 		saltedKeyPass := base64.StdEncoding.EncodeToString(saltedKeyPassByteArr)
@@ -111,11 +120,16 @@ func Login(ctx context.Context, config *Config) (*proton.Manager, *proton.Client
 
 		err = cacheCredentialToFile(config)
 		if err != nil {
-			return nil, nil, nil, nil, nil, err
+			return nil, nil, nil, nil, nil, nil, err
 		}
-	}
 
-	return m, c, userKR, addrKRs, addr, nil
+		return m, c, &ProtonDriveCredential{
+			UID:           auth.UID,
+			AccessToken:   auth.AccessToken,
+			RefreshToken:  auth.RefreshToken,
+			SaltedKeyPass: saltedKeyPass,
+		}, userKR, addrKRs, addr, nil
+	}
 }
 
 func Logout(ctx context.Context, config *Config, m *proton.Manager, c *proton.Client, userKR *crypto.KeyRing, addrKRs map[string]*crypto.KeyRing) error {

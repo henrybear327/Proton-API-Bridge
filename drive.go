@@ -31,11 +31,11 @@ func NewDefaultConfig() *common.Config {
 	return common.NewConfigWithDefaultValues()
 }
 
-func NewProtonDrive(ctx context.Context, config *common.Config) (*ProtonDrive, error) {
+func NewProtonDrive(ctx context.Context, config *common.Config) (*ProtonDrive, *common.ProtonDriveCredential, error) {
 	/* Log in and logout */
-	m, c, userKR, addrKRs, addrData, err := common.Login(ctx, config)
+	m, c, credentials, userKR, addrKRs, addrData, err := common.Login(ctx, config)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	/*
@@ -57,7 +57,7 @@ func NewProtonDrive(ctx context.Context, config *common.Config) (*ProtonDrive, e
 	*/
 	volumes, err := listAllVolumes(ctx, c)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// log.Printf("all volumes %#v", volumes)
 
@@ -73,7 +73,7 @@ func NewProtonDrive(ctx context.Context, config *common.Config) (*ProtonDrive, e
 	/* Get root folder from the main share of the volume */
 	mainShare, err := getShareByID(ctx, c, mainShareID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// check for main share integrity
@@ -81,7 +81,7 @@ func NewProtonDrive(ctx context.Context, config *common.Config) (*ProtonDrive, e
 		mainShareCheck := false
 		shares, err := getAllShares(ctx, c)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		for i := range shares {
 			if shares[i].ShareID == mainShare.ShareID &&
@@ -95,7 +95,7 @@ func NewProtonDrive(ctx context.Context, config *common.Config) (*ProtonDrive, e
 		if !mainShareCheck {
 			log.Printf("mainShare %#v", mainShare)
 			log.Printf("shares %#v", shares)
-			return nil, ErrMainSharePreconditionsFailed
+			return nil, nil, ErrMainSharePreconditionsFailed
 		}
 	}
 
@@ -108,10 +108,10 @@ func NewProtonDrive(ctx context.Context, config *common.Config) (*ProtonDrive, e
 	*/
 	rootLink, err := c.GetLink(ctx, mainShare.ShareID, mainShare.LinkID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// log.Printf("rootLink %#v", rootLink)
 
@@ -121,7 +121,7 @@ func NewProtonDrive(ctx context.Context, config *common.Config) (*ProtonDrive, e
 
 	mainShareKR, err := mainShare.GetKeyRing(addrKR)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// log.Println("mainShareKR CountDecryptionEntities", mainShareKR.CountDecryptionEntities())
 
@@ -140,7 +140,7 @@ func NewProtonDrive(ctx context.Context, config *common.Config) (*ProtonDrive, e
 		addrKRs:          addrKRs,
 		addrData:         addrData,
 		signatureAddress: mainShare.Creator,
-	}, nil
+	}, credentials, nil
 }
 
 func (protonDrive *ProtonDrive) Logout(ctx context.Context) error {

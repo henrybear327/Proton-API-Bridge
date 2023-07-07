@@ -34,7 +34,7 @@ func setup(t *testing.T, replaceExistingDraft bool) (context.Context, context.Ca
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	protonDrive, err := NewProtonDrive(ctx, config)
+	protonDrive, auth, err := NewProtonDrive(ctx, config)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,6 +42,15 @@ func setup(t *testing.T, replaceExistingDraft bool) (context.Context, context.Ca
 	err = protonDrive.EmptyRootFolder(ctx)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if config.UseReusableLogin {
+		if auth != nil {
+			t.Fatalf("Auth should be nil")
+		}
+	} else {
+		if auth == nil {
+			t.Fatalf("Auth should not be nil")
+		}
 	}
 
 	err = protonDrive.EmptyTrash(ctx)
