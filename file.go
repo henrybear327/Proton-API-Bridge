@@ -403,18 +403,23 @@ func (protonDrive *ProtonDrive) uploadAndCollectBlockData(ctx context.Context, n
 		return nil
 	}
 
-	for i := 1; ; i++ {
+	shouldContinue := true
+	for i := 1; shouldContinue; i++ {
 		// read at most data of size UPLOAD_BLOCK_SIZE
 		data := make([]byte, UPLOAD_BLOCK_SIZE) // FIXME: get block size from the server config instead of hardcoding it
 		readBytes, err := file.Read(data)
+
 		if err != nil {
 			if err == io.EOF {
-				if readBytes > 0 {
-					return nil, 0, ErrWrongEOFAssumption
+				// might still have data to read!
+				if readBytes == 0 {
+					break
 				}
-				break
+				shouldContinue = false
+			} else {
+				// all other errors
+				return nil, 0, err
 			}
-			return nil, 0, err
 		}
 		data = data[:readBytes]
 		totalFileSize += int64(readBytes)
