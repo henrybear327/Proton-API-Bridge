@@ -34,7 +34,7 @@ func setup(t *testing.T, replaceExistingDraft bool) (context.Context, context.Ca
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	protonDrive, auth, err := NewProtonDrive(ctx, config)
+	protonDrive, auth, err := NewProtonDrive(ctx, config, func(auth proton.Auth) {}, func() {})
 	if err != nil {
 		t.Fatal(err)
 	}

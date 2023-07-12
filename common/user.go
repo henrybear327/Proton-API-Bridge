@@ -47,7 +47,7 @@ Log in methods
 Keyring decryption
 The password will be salted, and then used to decrypt the keyring. The salted password needs to be and can be cached, so the keyring can be re-decrypted when needed
 */
-func Login(ctx context.Context, config *Config) (*proton.Manager, *proton.Client, *ProtonDriveCredential, *crypto.KeyRing, map[string]*crypto.KeyRing, []proton.Address, error) {
+func Login(ctx context.Context, config *Config, authHandler proton.AuthHandler, deAuthHandler proton.Handler) (*proton.Manager, *proton.Client, *ProtonDriveCredential, *crypto.KeyRing, map[string]*crypto.KeyRing, []proton.Address, error) {
 	var c *proton.Client
 	var auth proton.Auth
 	var userKR *crypto.KeyRing
@@ -59,8 +59,8 @@ func Login(ctx context.Context, config *Config) (*proton.Manager, *proton.Client
 
 	if config.UseReusableLogin {
 		c = m.NewClient(config.ReusableCredential.UID, config.ReusableCredential.AccessToken, config.ReusableCredential.RefreshToken)
-
-		// TODO: register auth/deauth handler
+		c.AddAuthHandler(authHandler)
+		c.AddDeauthHandler(deAuthHandler)
 
 		err := cacheCredentialToFile(config)
 		if err != nil {
@@ -90,7 +90,8 @@ func Login(ctx context.Context, config *Config) (*proton.Manager, *proton.Client
 		if err != nil {
 			return nil, nil, nil, nil, nil, nil, err
 		}
-		// log.Printf("Available scopes %#v", auth.Scope)
+		c.AddAuthHandler(authHandler)
+		c.AddDeauthHandler(deAuthHandler)
 
 		if auth.TwoFA.Enabled&proton.HasTOTP != 0 {
 			if config.FirstLoginCredential.TwoFA != "" {
