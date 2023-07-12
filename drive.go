@@ -25,6 +25,8 @@ type ProtonDrive struct {
 	addrKRs          map[string]*crypto.KeyRing
 	addrData         []proton.Address
 	signatureAddress string
+
+	cache *cache
 }
 
 func NewDefaultConfig() *common.Config {
@@ -140,6 +142,8 @@ func NewProtonDrive(ctx context.Context, config *common.Config, authHandler prot
 		addrKRs:          addrKRs,
 		addrData:         addrData,
 		signatureAddress: mainShare.Creator,
+
+		cache: newCache(config.DisableCaching),
 	}, credentials, nil
 }
 
