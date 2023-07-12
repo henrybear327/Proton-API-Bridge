@@ -15,7 +15,6 @@ var (
 	ErrLinkMustBeActive                      = errors.New("can not operate on link state other than active")
 	ErrDownloadedBlockHashVerificationFailed = errors.New("the hash of the downloaded block doesn't match the original hash")
 	ErrDraftExists                           = errors.New("a draft exist - usually this means a file is being uploaded at another client, or, there was a failed upload attempt")
-	ErrWrongEOFAssumption                    = errors.New("we have a problem in the assumption where EOF comes on its own")
 	ErrCantFindActiveRevision                = errors.New("can't find an active revision")
 	ErrCantFindDraftRevision                 = errors.New("can't find a draft revision")
 )
