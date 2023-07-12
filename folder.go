@@ -20,7 +20,7 @@ func (protonDrive *ProtonDrive) ListDirectory(
 	folderLinkID string) ([]*ProtonDirectoryData, error) {
 	ret := make([]*ProtonDirectoryData, 0)
 
-	folderLink, err := protonDrive.c.GetLink(ctx, protonDrive.MainShare.ShareID, folderLinkID)
+	folderLink, err := protonDrive.getLink(ctx, folderLinkID)
 	if err != nil {
 		return nil, err
 	}
@@ -158,12 +158,12 @@ func (protonDrive *ProtonDrive) ListDirectoriesRecursively(
 }
 
 func (protonDrive *ProtonDrive) CreateNewFolderByID(ctx context.Context, parentLinkID string, folderName string) (string, error) {
-	parentLink, err := protonDrive.c.GetLink(ctx, protonDrive.MainShare.ShareID, parentLinkID)
+	parentLink, err := protonDrive.getLink(ctx, parentLinkID)
 	if err != nil {
 		return "", err
 	}
 
-	return protonDrive.CreateNewFolder(ctx, &parentLink, folderName)
+	return protonDrive.CreateNewFolder(ctx, parentLink, folderName)
 }
 
 func (protonDrive *ProtonDrive) CreateNewFolder(ctx context.Context, parentLink *proton.Link, folderName string) (string, error) {
@@ -227,7 +227,7 @@ func (protonDrive *ProtonDrive) CreateNewFolder(ctx context.Context, parentLink 
 }
 
 func (protonDrive *ProtonDrive) MoveFileByID(ctx context.Context, srcLinkID, dstParentLinkID string, dstName string) error {
-	srcLink, err := protonDrive.c.GetLink(ctx, protonDrive.MainShare.ShareID, srcLinkID)
+	srcLink, err := protonDrive.getLink(ctx, srcLinkID)
 	if err != nil {
 		return err
 	}
@@ -235,7 +235,7 @@ func (protonDrive *ProtonDrive) MoveFileByID(ctx context.Context, srcLinkID, dst
 		return ErrLinkMustBeActive
 	}
 
-	dstParentLink, err := protonDrive.c.GetLink(ctx, protonDrive.MainShare.ShareID, dstParentLinkID)
+	dstParentLink, err := protonDrive.getLink(ctx, dstParentLinkID)
 	if err != nil {
 		return err
 	}
@@ -243,7 +243,7 @@ func (protonDrive *ProtonDrive) MoveFileByID(ctx context.Context, srcLinkID, dst
 		return ErrLinkMustBeActive
 	}
 
-	return protonDrive.MoveFile(ctx, &srcLink, &dstParentLink, dstName)
+	return protonDrive.MoveFile(ctx, srcLink, dstParentLink, dstName)
 }
 
 func (protonDrive *ProtonDrive) MoveFile(ctx context.Context, srcLink *proton.Link, dstParentLink *proton.Link, dstName string) error {
@@ -251,7 +251,7 @@ func (protonDrive *ProtonDrive) MoveFile(ctx context.Context, srcLink *proton.Li
 }
 
 func (protonDrive *ProtonDrive) MoveFolderByID(ctx context.Context, srcLinkID, dstParentLinkID, dstName string) error {
-	srcLink, err := protonDrive.c.GetLink(ctx, protonDrive.MainShare.ShareID, srcLinkID)
+	srcLink, err := protonDrive.getLink(ctx, srcLinkID)
 	if err != nil {
 		return err
 	}
@@ -259,7 +259,7 @@ func (protonDrive *ProtonDrive) MoveFolderByID(ctx context.Context, srcLinkID, d
 		return ErrLinkMustBeActive
 	}
 
-	dstParentLink, err := protonDrive.c.GetLink(ctx, protonDrive.MainShare.ShareID, dstParentLinkID)
+	dstParentLink, err := protonDrive.getLink(ctx, dstParentLinkID)
 	if err != nil {
 		return err
 	}
@@ -267,7 +267,7 @@ func (protonDrive *ProtonDrive) MoveFolderByID(ctx context.Context, srcLinkID, d
 		return ErrLinkMustBeActive
 	}
 
-	return protonDrive.MoveFolder(ctx, &srcLink, &dstParentLink, dstName)
+	return protonDrive.MoveFolder(ctx, srcLink, dstParentLink, dstName)
 }
 
 func (protonDrive *ProtonDrive) MoveFolder(ctx context.Context, srcLink *proton.Link, dstParentLink *proton.Link, dstName string) error {

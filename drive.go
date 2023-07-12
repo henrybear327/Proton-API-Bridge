@@ -157,6 +157,5 @@ func (protonDrive *ProtonDrive) About(ctx context.Context) (*proton.User, error)
 }
 
 func (protonDrive *ProtonDrive) GetLink(ctx context.Context, linkID string) (*proton.Link, error) {
-	link, err := protonDrive.c.GetLink(ctx, protonDrive.MainShare.ShareID, linkID)
-	return &link, err
+	return protonDrive.getLink(ctx, linkID)
 }
