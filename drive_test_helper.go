@@ -126,7 +126,7 @@ func createFolder(t *testing.T, ctx context.Context, protonDrive *ProtonDrive, p
 	createFolderExpectError(t, ctx, protonDrive, parent, name, nil)
 }
 
-func uploadFileByReader(t *testing.T, ctx context.Context, protonDrive *ProtonDrive, parent, name string, in io.Reader, createFileOnly bool) {
+func uploadFileByReader(t *testing.T, ctx context.Context, protonDrive *ProtonDrive, parent, name string, in io.Reader, testParam int) {
 	parentLink := protonDrive.RootLink
 	if parent != "" {
 		targetFolderLink, err := protonDrive.SearchByNameRecursivelyFromRoot(ctx, parent, true, false)
@@ -142,13 +142,13 @@ func uploadFileByReader(t *testing.T, ctx context.Context, protonDrive *ProtonDr
 		t.Fatalf("parentLink is not of folder type")
 	}
 
-	_, _, err := protonDrive.UploadFileByReader(ctx, parentLink.LinkID, name, time.Now(), in, createFileOnly)
+	_, _, err := protonDrive.UploadFileByReader(ctx, parentLink.LinkID, name, time.Now(), in, testParam)
 	if err != nil {
 		t.Fatal(err)
 	}
 }
 
-func uploadFileByFilepathWithError(t *testing.T, ctx context.Context, protonDrive *ProtonDrive, parent, name string, filepath string, createFileOnly bool, expectedError error) {
+func uploadFileByFilepathWithError(t *testing.T, ctx context.Context, protonDrive *ProtonDrive, parent, name string, filepath string, testParam int, expectedError error) {
 	parentLink := protonDrive.RootLink
 	if parent != "" {
 		targetFolderLink, err := protonDrive.SearchByNameRecursivelyFromRoot(ctx, parent, true, false)
@@ -177,14 +177,14 @@ func uploadFileByFilepathWithError(t *testing.T, ctx context.Context, protonDriv
 
 	in := bufio.NewReader(f)
 
-	_, _, err = protonDrive.UploadFileByReader(ctx, parentLink.LinkID, name, info.ModTime(), in, createFileOnly)
+	_, _, err = protonDrive.UploadFileByReader(ctx, parentLink.LinkID, name, info.ModTime(), in, testParam)
 	if err != expectedError {
 		t.Fatal(err)
 	}
 }
 
-func uploadFileByFilepath(t *testing.T, ctx context.Context, protonDrive *ProtonDrive, parent, name string, filepath string, createFileOnly bool) {
-	uploadFileByFilepathWithError(t, ctx, protonDrive, parent, name, filepath, createFileOnly, nil)
+func uploadFileByFilepath(t *testing.T, ctx context.Context, protonDrive *ProtonDrive, parent, name string, filepath string, testParam int) {
+	uploadFileByFilepathWithError(t, ctx, protonDrive, parent, name, filepath, testParam, nil)
 }
 
 func downloadFile(t *testing.T, ctx context.Context, protonDrive *ProtonDrive, parent, name string, filepath string, data string) {
@@ -273,7 +273,7 @@ func checkRevisions(protonDrive *ProtonDrive, ctx context.Context, t *testing.T,
 			}
 		}
 		if activeRevisions != 0 || draftRevisions != 0 || obseleteRevisions != 0 {
-			t.Fatalf("Wrong revision count %v %v %v", activeRevisions, draftRevisions, obseleteRevisions)
+			t.Fatalf("Wrong revision count (should be all 0 here) %v %v %v", activeRevisions, draftRevisions, obseleteRevisions)
 		}
 	}
 }
