@@ -26,7 +26,7 @@ type ProtonDrive struct {
 	addrData         []proton.Address
 	signatureAddress string
 
-	linkCache *linkCache
+	cache *cache
 }
 
 func NewDefaultConfig() *common.Config {
@@ -143,7 +143,7 @@ func NewProtonDrive(ctx context.Context, config *common.Config, authHandler prot
 		addrData:         addrData,
 		signatureAddress: mainShare.Creator,
 
-		linkCache: newLinkCache(config.DisableLinkCaching),
+		cache: newLinkCache(config.DisableLinkCaching),
 	}, credentials, nil
 }
 
