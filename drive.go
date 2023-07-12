@@ -31,9 +31,9 @@ func NewDefaultConfig() *common.Config {
 	return common.NewConfigWithDefaultValues()
 }
 
-func NewProtonDrive(ctx context.Context, config *common.Config) (*ProtonDrive, *common.ProtonDriveCredential, error) {
+func NewProtonDrive(ctx context.Context, config *common.Config, authHandler proton.AuthHandler, deAuthHandler proton.Handler) (*ProtonDrive, *common.ProtonDriveCredential, error) {
 	/* Log in and logout */
-	m, c, credentials, userKR, addrKRs, addrData, err := common.Login(ctx, config)
+	m, c, credentials, userKR, addrKRs, addrData, err := common.Login(ctx, config, authHandler, deAuthHandler)
 	if err != nil {
 		return nil, nil, err
 	}
