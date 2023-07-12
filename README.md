@@ -44,6 +44,8 @@ V2 will bring in optimizations and enhancements, such as optimizing uploading an
     - [x] List all folders and files recursively within the root folder
     - [x] Delete
     - [x] Create
+    - [x] (Feature) Update
+    - [x] (Feature) Move
 - [x] File actions
     - [x] Download
         - [x] Download empty file
@@ -56,6 +58,7 @@ V2 will bring in optimizations and enhancements, such as optimizing uploading an
         - [x] Parse mime type 
         - [x] Add revision
         - [x] Modified time
+        - [x] Handle failed / interrupted upload
     - [x] List file metadata 
 - [x] Duplicated file name handling: 422: A file or folder with that name already exists (Code=2500, Status=422)
 - [x] Init ProtonDrive with config passed in as Map
@@ -91,10 +94,11 @@ V2 will bring in optimizations and enhancements, such as optimizing uploading an
     - [x] Duplicated folder name handling: 422: A file or folder with that name already exists (Code=2500, Status=422)
     - [x] Not found: ERROR RESTY 422: File or folder was not found. (Code=2501, Status=422), Attempt 1
     - [x] Failed upload: Draft already exists on this revision (Code=2500, Status=409)
+- [x] Fix file upload progress -> If the upload failed, please Replace file. If the upload is still in progress, replacing it will cancel the ongoing upload
 
 ### Known limitations
 
-- Large file handling: for uploading, files will be loaded into the memory entirely, encrypted, and then chunked; for downloading, the file will be written when all blocks are decrypted and checked
+- Large file handling: for downloading, the file will be written when all blocks are decrypted and checked
 - Crypto-related operations, e.g. signature verification, still needs to cross check with iOS or web open source codebase 
 - No thumbnails, respecting accepted MIME types, max upload size, can't init Proton Drive, etc.
 - Assumptions
@@ -104,20 +108,16 @@ V2 will bring in optimizations and enhancements, such as optimizing uploading an
 ## V2
 
 - [ ] Confirm the HMAC algorithm -> if you create a draft using integration test, and then use the web frontend to finish the upload (you will see overwrite pop-up), and then use the web frontend to upload again the same file, but this time you will have 2 files with duplicated names
-- [ ] Fix file upload progress -> If the upload failed, please Replace file. If the upload is still in progress, replacing it will cancel the ongoing upload
 - [ ] Mimetype detection by [using the file content itself](github.com/gabriel-vasile/mimetype)
-- [ ] Improve file searching function to use HMAC instead of just using string comparison
 - [ ] Remove e.g. proton.link related exposures in the function signature (this library should abstract them all)
 - [ ] Documentation
+- [ ] Handle failed / interrupted upload -> file the bug report to ProtonMail
 - [ ] Go through Drive iOS source code and check the logic control flow
 - [ ] Figure out the bottleneck by doing some profiling 
 - [ ] File
-    - [ ] Improve large file handling
-    - [ ] Handle failed / interrupted upload
+    - [ ] Parallel download / upload -> enc/dec is expensive
+    - [ ] Improve large file download handling
     - [ ] [Filename encoding](https://github.com/ProtonMail/WebClients/blob/b4eba99d241af4fdae06ff7138bd651a40ef5d3c/applications/drive/src/app/store/_links/validation.ts#L51)
-- [ ] Folder
-    - [ ] (Feature) Update (force overwrite)
-    - [ ] (Feature) Move
 - [ ] Commit back to proton-go-api and switch to using upstream (make sure the tag is at the tip though)
 - [ ] Support legacy 2-password mode
 - [ ] Support thumbnail
