@@ -23,12 +23,12 @@ type FileSystemAttrs struct {
 }
 
 func (protonDrive *ProtonDrive) DownloadFileByID(ctx context.Context, linkID string) ([]byte, *FileSystemAttrs, error) {
-	link, err := protonDrive.c.GetLink(ctx, protonDrive.MainShare.ShareID, linkID)
+	link, err := protonDrive.getLink(ctx, linkID)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	return protonDrive.DownloadFile(ctx, &link)
+	return protonDrive.DownloadFile(ctx, link)
 }
 
 func (protonDrive *ProtonDrive) GetRevisions(ctx context.Context, link *proton.Link, revisionType proton.RevisionState) ([]*proton.RevisionMetadata, error) {
@@ -136,12 +136,12 @@ func (protonDrive *ProtonDrive) DownloadFile(ctx context.Context, link *proton.L
 }
 
 func (protonDrive *ProtonDrive) UploadFileByReader(ctx context.Context, parentLinkID string, filename string, modTime time.Time, file io.Reader, testParam int) (*proton.Link, int64, error) {
-	parentLink, err := protonDrive.c.GetLink(ctx, protonDrive.MainShare.ShareID, parentLinkID)
+	parentLink, err := protonDrive.getLink(ctx, parentLinkID)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	return protonDrive.uploadFile(ctx, &parentLink, filename, modTime, file, testParam)
+	return protonDrive.uploadFile(ctx, parentLink, filename, modTime, file, testParam)
 }
 
 func (protonDrive *ProtonDrive) UploadFileByPath(ctx context.Context, parentLink *proton.Link, filename string, filePath string, testParam int) (*proton.Link, int64, error) {
@@ -528,11 +528,11 @@ func (protonDrive *ProtonDrive) uploadFile(ctx context.Context, parentLink *prot
 	if testParam == 1 {
 		// for integration tests
 		// we try to simulate only draft is created but no upload is performed yet
-		finalLink, err := protonDrive.c.GetLink(ctx, protonDrive.MainShare.ShareID, linkID)
+		finalLink, err := protonDrive.getLink(ctx, linkID)
 		if err != nil {
 			return nil, 0, err
 		}
-		return &finalLink, 0, nil
+		return finalLink, 0, nil
 	}
 
 	/* step 2: upload blocks and collect block data */
@@ -544,11 +544,11 @@ func (protonDrive *ProtonDrive) uploadFile(ctx context.Context, parentLink *prot
 	if testParam == 2 {
 		// for integration tests
 		// we try to simulate blocks uploaded but not yet commited
-		finalLink, err := protonDrive.c.GetLink(ctx, protonDrive.MainShare.ShareID, linkID)
+		finalLink, err := protonDrive.getLink(ctx, linkID)
 		if err != nil {
 			return nil, 0, err
 		}
-		return &finalLink, 0, nil
+		return finalLink, 0, nil
 	}
 
 	/* step 3: mark the file as active by commiting the revision */
@@ -557,11 +557,11 @@ func (protonDrive *ProtonDrive) uploadFile(ctx context.Context, parentLink *prot
 		return nil, 0, err
 	}
 
-	finalLink, err := protonDrive.c.GetLink(ctx, protonDrive.MainShare.ShareID, linkID)
+	finalLink, err := protonDrive.getLink(ctx, linkID)
 	if err != nil {
 		return nil, 0, err
 	}
-	return &finalLink, fileSize, nil
+	return finalLink, fileSize, nil
 }
 
 /*

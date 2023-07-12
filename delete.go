@@ -16,7 +16,7 @@ func (protonDrive *ProtonDrive) moveToTrash(ctx context.Context, parentLinkID st
 }
 
 func (protonDrive *ProtonDrive) MoveFileToTrashByID(ctx context.Context, linkID string) error {
-	fileLink, err := protonDrive.c.GetLink(ctx, protonDrive.MainShare.ShareID, linkID)
+	fileLink, err := protonDrive.getLink(ctx, linkID)
 	if err != nil {
 		return err
 	}
@@ -28,7 +28,7 @@ func (protonDrive *ProtonDrive) MoveFileToTrashByID(ctx context.Context, linkID 
 }
 
 func (protonDrive *ProtonDrive) MoveFolderToTrashByID(ctx context.Context, linkID string, onlyOnEmpty bool) error {
-	folderLink, err := protonDrive.c.GetLink(ctx, protonDrive.MainShare.ShareID, linkID)
+	folderLink, err := protonDrive.getLink(ctx, linkID)
 	if err != nil {
 		return err
 	}

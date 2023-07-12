@@ -13,12 +13,12 @@ func (protonDrive *ProtonDrive) getNodeKRByID(ctx context.Context, linkID string
 		return protonDrive.MainShareKR.Copy() // we need to return a deep copy since the keyring will be freed by the caller when it finishes using the keyring
 	}
 
-	link, err := protonDrive.c.GetLink(ctx, protonDrive.MainShare.ShareID, linkID)
+	link, err := protonDrive.getLink(ctx, linkID)
 	if err != nil {
 		return nil, err
 	}
 
-	return protonDrive.getNodeKR(ctx, &link)
+	return protonDrive.getNodeKR(ctx, link)
 }
 
 func (protonDrive *ProtonDrive) getNodeKR(ctx context.Context, link *proton.Link) (*crypto.KeyRing, error) {
@@ -31,13 +31,13 @@ func (protonDrive *ProtonDrive) getNodeKR(ctx context.Context, link *proton.Link
 		return nodeKR, nil
 	}
 
-	parentLink, err := protonDrive.c.GetLink(ctx, protonDrive.MainShare.ShareID, link.ParentLinkID)
+	parentLink, err := protonDrive.getLink(ctx, link.ParentLinkID)
 	if err != nil {
 		return nil, err
 	}
 
 	// parentNodeKR is used to decrypt the current node's KR, as each node has its keyring, which can be decrypted by its parent
-	parentNodeKR, err := protonDrive.getNodeKR(ctx, &parentLink)
+	parentNodeKR, err := protonDrive.getNodeKR(ctx, parentLink)
 	if err != nil {
 		return nil, err
 	}

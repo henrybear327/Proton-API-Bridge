@@ -22,7 +22,7 @@ func (protonDrive *ProtonDrive) SearchByNameRecursivelyFromRoot(ctx context.Cont
 }
 
 func (protonDrive *ProtonDrive) SearchByNameRecursivelyByID(ctx context.Context, folderLinkID string, targetName string, isFolder bool, listAllActiveOrDraftFiles bool) (*proton.Link, error) {
-	folderLink, err := protonDrive.c.GetLink(ctx, protonDrive.MainShare.ShareID, folderLinkID)
+	folderLink, err := protonDrive.getLink(ctx, folderLinkID)
 	if err != nil {
 		return nil, err
 	}
@@ -41,7 +41,7 @@ func (protonDrive *ProtonDrive) SearchByNameRecursivelyByID(ctx context.Context,
 	if err != nil {
 		return nil, err
 	}
-	return protonDrive.searchByNameRecursively(ctx, folderKeyRing, &folderLink, targetName, linkType, listAllActiveOrDraftFiles)
+	return protonDrive.searchByNameRecursively(ctx, folderKeyRing, folderLink, targetName, linkType, listAllActiveOrDraftFiles)
 }
 
 func (protonDrive *ProtonDrive) SearchByNameRecursively(ctx context.Context, folderLink *proton.Link, targetName string, isFolder bool, listAllActiveOrDraftFiles bool) (*proton.Link, error) {
@@ -121,12 +121,12 @@ func (protonDrive *ProtonDrive) SearchByNameInActiveFolderByID(ctx context.Conte
 	targetName string,
 	searchForFile, searchForFolder bool,
 	targetState proton.LinkState) (*proton.Link, error) {
-	folderLink, err := protonDrive.c.GetLink(ctx, protonDrive.MainShare.ShareID, folderLinkID)
+	folderLink, err := protonDrive.getLink(ctx, folderLinkID)
 	if err != nil {
 		return nil, err
 	}
 
-	return protonDrive.SearchByNameInActiveFolder(ctx, &folderLink, targetName, searchForFile, searchForFolder, targetState)
+	return protonDrive.SearchByNameInActiveFolder(ctx, folderLink, targetName, searchForFile, searchForFolder, targetState)
 }
 
 func (protonDrive *ProtonDrive) SearchByNameInActiveFolder(
