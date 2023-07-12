@@ -381,6 +381,10 @@ func (protonDrive *ProtonDrive) uploadFile(ctx context.Context, parentLink *prot
 
 	// detect MIME type by looking at the filename only
 	mimeType := mime.TypeByExtension(filepath.Ext(filename))
+	if mimeType == "" {
+		// api requires a mime type passed in
+		mimeType = "text/plain"
+	}
 
 	/* step 1: create a draft */
 	link, createFileResp, newSessionKey, newNodeKR, err := protonDrive.createFileUploadDraft(ctx, parentLink, filename, modTime, mimeType)
