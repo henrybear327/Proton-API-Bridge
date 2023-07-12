@@ -4,14 +4,14 @@ go 1.18
 
 require (
 	github.com/ProtonMail/gopenpgp/v2 v2.7.1
-	github.com/henrybear327/go-proton-api v0.0.0-20230706104119-ca374251ebb7
+	github.com/henrybear327/go-proton-api v0.0.0-20230712143834-912c2b22f334
 	github.com/relvacode/iso8601 v1.3.0
 )
 
 require (
 	github.com/ProtonMail/bcrypt v0.0.0-20211005172633-e235017c1baf // indirect
-	github.com/ProtonMail/gluon v0.16.1-0.20230526091020-fb7689b15ae3 // indirect
-	github.com/ProtonMail/go-crypto v0.0.0-20230626094100-7e9e0395ebec // indirect
+	github.com/ProtonMail/gluon v0.17.0 // indirect
+	github.com/ProtonMail/go-crypto v0.0.0-20230710112148-e01326fd72eb // indirect
 	github.com/ProtonMail/go-mime v0.0.0-20230322103455-7d82a3887f2f // indirect
 	github.com/ProtonMail/go-srp v0.0.7 // indirect
 	github.com/PuerkitoBio/goquery v1.8.1 // indirect
@@ -27,7 +27,7 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	golang.org/x/crypto v0.11.0 // indirect
-	golang.org/x/exp v0.0.0-20230626212559-97b1e661b5df // indirect
+	golang.org/x/exp v0.0.0-20230711153332-06a737ee72cb // indirect
 	golang.org/x/net v0.12.0 // indirect
 	golang.org/x/sync v0.3.0 // indirect
 	golang.org/x/sys v0.10.0 // indirect

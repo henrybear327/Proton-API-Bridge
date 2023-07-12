@@ -116,23 +116,25 @@ func (protonDrive *ProtonDrive) searchByNameRecursively(
 }
 
 // if the target isn't found, nil will be returned for both return values
-func (protonDrive *ProtonDrive) SearchByNameInFolderByID(ctx context.Context,
+func (protonDrive *ProtonDrive) SearchByNameInActiveFolderByID(ctx context.Context,
 	folderLinkID string,
 	targetName string,
-	searchForFile, searchForFolder, listAllActiveOrDraftFiles bool) (*proton.Link, error) {
+	searchForFile, searchForFolder bool,
+	targetState proton.LinkState) (*proton.Link, error) {
 	folderLink, err := protonDrive.c.GetLink(ctx, protonDrive.MainShare.ShareID, folderLinkID)
 	if err != nil {
 		return nil, err
 	}
 
-	return protonDrive.SearchByNameInFolder(ctx, &folderLink, targetName, searchForFile, searchForFolder, listAllActiveOrDraftFiles)
+	return protonDrive.SearchByNameInActiveFolder(ctx, &folderLink, targetName, searchForFile, searchForFolder, targetState)
 }
 
-func (protonDrive *ProtonDrive) SearchByNameInFolder(
+func (protonDrive *ProtonDrive) SearchByNameInActiveFolder(
 	ctx context.Context,
 	folderLink *proton.Link,
 	targetName string,
-	searchForFile, searchForFolder, listAllActiveOrDraftFiles bool) (*proton.Link, error) {
+	searchForFile, searchForFolder bool,
+	targetState proton.LinkState) (*proton.Link, error) {
 	if !searchForFile && !searchForFolder {
 		// nothing to search
 		return nil, nil
@@ -165,11 +167,7 @@ func (protonDrive *ProtonDrive) SearchByNameInFolder(
 		return nil, err
 	}
 	for _, childLink := range childrenLinks {
-		if listAllActiveOrDraftFiles {
-			if childLink.State != proton.LinkStateActive && childLink.State != proton.LinkStateDraft {
-				continue
-			}
-		} else if childLink.State != proton.LinkStateActive {
+		if childLink.State != targetState {
 			continue
 		}
 

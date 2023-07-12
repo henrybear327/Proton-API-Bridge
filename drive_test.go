@@ -51,13 +51,31 @@ func TestUploadAndDownloadAndDeleteAFile(t *testing.T) {
 	})
 
 	log.Println("Upload integrationTestImage.png")
-	uploadFileByFilepath(t, ctx, protonDrive, "", "integrationTestImage.png", "testcase/integrationTestImage.png", false)
+	uploadFileByFilepath(t, ctx, protonDrive, "", "integrationTestImage.png", "testcase/integrationTestImage.png", 0)
+	checkRevisions(protonDrive, ctx, t, "integrationTestImage.png", 1, 1, 0, 0)
+	checkActiveFileListing(t, ctx, protonDrive, []string{"/integrationTestImage.png"})
+	downloadFile(t, ctx, protonDrive, "", "integrationTestImage.png", "testcase/integrationTestImage.png", "")
+
+	log.Println("Delete file integrationTestImage.png")
+	deleteBySearchingFromRoot(t, ctx, protonDrive, "integrationTestImage.png", false, false)
+	checkActiveFileListing(t, ctx, protonDrive, []string{})
+}
+
+func TestUploadAndUploadAndDownloadAndDeleteAFile(t *testing.T) {
+	ctx, cancel, protonDrive := setup(t, true)
+	t.Cleanup(func() {
+		defer cancel()
+		defer tearDown(t, ctx, protonDrive)
+	})
+
+	log.Println("Upload integrationTestImage.png")
+	uploadFileByFilepath(t, ctx, protonDrive, "", "integrationTestImage.png", "testcase/integrationTestImage.png", 0)
 	checkRevisions(protonDrive, ctx, t, "integrationTestImage.png", 1, 1, 0, 0)
 	checkActiveFileListing(t, ctx, protonDrive, []string{"/integrationTestImage.png"})
 	downloadFile(t, ctx, protonDrive, "", "integrationTestImage.png", "testcase/integrationTestImage.png", "")
 
 	log.Println("Upload a new revision to replace integrationTestImage.png")
-	uploadFileByFilepath(t, ctx, protonDrive, "", "integrationTestImage.png", "testcase/integrationTestImage2.png", false) /* Add a revision */
+	uploadFileByFilepath(t, ctx, protonDrive, "", "integrationTestImage.png", "testcase/integrationTestImage2.png", 0) /* Add a revision */
 	checkRevisions(protonDrive, ctx, t, "integrationTestImage.png", 2, 1, 0, 1)
 	downloadFile(t, ctx, protonDrive, "", "integrationTestImage.png", "testcase/integrationTestImage2.png", "")
 
@@ -73,13 +91,13 @@ func TestPartialUploadAndReuploadFailedAndDownloadAndDeleteAFile(t *testing.T) {
 		defer tearDown(t, ctx, protonDrive)
 	})
 
-	log.Println("Partial upload a new draft revision of integrationTestImage.png")
-	uploadFileByFilepath(t, ctx, protonDrive, "", "integrationTestImage.png", "testcase/integrationTestImage.png", true)
+	log.Println("Create a new draft revision of integrationTestImage.png")
+	uploadFileByFilepath(t, ctx, protonDrive, "", "integrationTestImage.png", "testcase/integrationTestImage.png", 1)
 	checkRevisions(protonDrive, ctx, t, "integrationTestImage.png", 1, 0, 1, 0)
 	checkActiveFileListing(t, ctx, protonDrive, []string{})
 
-	log.Println("Partial upload a new draft revision of integrationTestImage.png again")
-	uploadFileByFilepathWithError(t, ctx, protonDrive, "", "integrationTestImage.png", "testcase/integrationTestImage.png", true, ErrDraftExists)
+	log.Println("Create a new draft revision of integrationTestImage.png again")
+	uploadFileByFilepathWithError(t, ctx, protonDrive, "", "integrationTestImage.png", "testcase/integrationTestImage.png", 1, ErrDraftExists)
 	checkRevisions(protonDrive, ctx, t, "integrationTestImage.png", 1, 0, 1, 0)
 	checkActiveFileListing(t, ctx, protonDrive, []string{})
 
@@ -96,20 +114,100 @@ func TestPartialUploadAndReuploadAndDownloadAndDeleteAFile(t *testing.T) {
 		defer tearDown(t, ctx, protonDrive)
 	})
 
-	log.Println("Partial upload a new draft revision of integrationTestImage.png")
-	uploadFileByFilepath(t, ctx, protonDrive, "", "integrationTestImage.png", "testcase/integrationTestImage.png", true)
+	log.Println("Create a new draft revision of integrationTestImage.png")
+	uploadFileByFilepath(t, ctx, protonDrive, "", "integrationTestImage.png", "testcase/integrationTestImage.png", 1)
 	checkRevisions(protonDrive, ctx, t, "integrationTestImage.png", 1, 0, 1, 0)
 	checkActiveFileListing(t, ctx, protonDrive, []string{})
 
-	log.Println("Partial upload a new draft revision of integrationTestImage.png again")
-	uploadFileByFilepath(t, ctx, protonDrive, "", "integrationTestImage.png", "testcase/integrationTestImage.png", true)
+	log.Println("Create a new draft revision of integrationTestImage.png again")
+	uploadFileByFilepath(t, ctx, protonDrive, "", "integrationTestImage.png", "testcase/integrationTestImage.png", 1)
 	checkRevisions(protonDrive, ctx, t, "integrationTestImage.png", 1, 0, 1, 0)
 	checkActiveFileListing(t, ctx, protonDrive, []string{})
 
-	log.Println("Upload a new revision and activates it to replace integrationTestImage.png")
-	uploadFileByFilepath(t, ctx, protonDrive, "", "integrationTestImage.png", "testcase/integrationTestImage2.png", false) /* Add a revision */
+	log.Println("Create a new revision and don't commit integrationTestImage.png")
+	uploadFileByFilepath(t, ctx, protonDrive, "", "integrationTestImage.png", "testcase/integrationTestImage2.png", 2)
+	checkRevisions(protonDrive, ctx, t, "integrationTestImage.png", 1, 0, 1, 0)
+	checkActiveFileListing(t, ctx, protonDrive, []string{})
+
+	log.Println("Create a new revision and commit it to replace integrationTestImage.png")
+	uploadFileByFilepath(t, ctx, protonDrive, "", "integrationTestImage.png", "testcase/integrationTestImage2.png", 0) /* Add a revision */
 	checkRevisions(protonDrive, ctx, t, "integrationTestImage.png", 1, 1, 0, 0)
 	downloadFile(t, ctx, protonDrive, "", "integrationTestImage.png", "testcase/integrationTestImage2.png", "")
+	checkActiveFileListing(t, ctx, protonDrive, []string{"/integrationTestImage.png"})
+
+	log.Println("Delete file integrationTestImage.png")
+	deleteBySearchingFromRoot(t, ctx, protonDrive, "integrationTestImage.png", false, false)
+	checkActiveFileListing(t, ctx, protonDrive, []string{})
+}
+
+func TestUploadAndDownloadThreeRevisionsAndDeleteAFile(t *testing.T) {
+	ctx, cancel, protonDrive := setup(t, true)
+	t.Cleanup(func() {
+		defer cancel()
+		defer tearDown(t, ctx, protonDrive)
+	})
+
+	log.Println("Create a new revision and commit it to replace integrationTestImage.png")
+	uploadFileByFilepath(t, ctx, protonDrive, "", "integrationTestImage.png", "testcase/integrationTestImage.png", 0) /* Add a revision */
+	checkRevisions(protonDrive, ctx, t, "integrationTestImage.png", 1, 1, 0, 0)
+	downloadFile(t, ctx, protonDrive, "", "integrationTestImage.png", "testcase/integrationTestImage.png", "")
+	checkActiveFileListing(t, ctx, protonDrive, []string{"/integrationTestImage.png"})
+
+	log.Println("Create a new revision 2 and commit it to replace integrationTestImage.png")
+	uploadFileByFilepath(t, ctx, protonDrive, "", "integrationTestImage.png", "testcase/empty.txt", 0) /* Add a revision */
+	checkRevisions(protonDrive, ctx, t, "integrationTestImage.png", 2, 1, 0, 1)
+	downloadFile(t, ctx, protonDrive, "", "integrationTestImage.png", "testcase/empty.txt", "")
+	checkActiveFileListing(t, ctx, protonDrive, []string{"/integrationTestImage.png"})
+
+	log.Println("Create a new revision 3 and commit it to replace integrationTestImage.png")
+	uploadFileByFilepath(t, ctx, protonDrive, "", "integrationTestImage.png", "testcase/integrationTestImage2.png", 0) /* Add a revision */
+	checkRevisions(protonDrive, ctx, t, "integrationTestImage.png", 3, 1, 0, 2)
+	downloadFile(t, ctx, protonDrive, "", "integrationTestImage.png", "testcase/integrationTestImage2.png", "")
+	checkActiveFileListing(t, ctx, protonDrive, []string{"/integrationTestImage.png"})
+
+	log.Println("Delete file integrationTestImage.png")
+	deleteBySearchingFromRoot(t, ctx, protonDrive, "integrationTestImage.png", false, false)
+	checkActiveFileListing(t, ctx, protonDrive, []string{})
+}
+
+func TestPartialUploadAndReuploadAndDownloadTwiceAndDeleteAFileSmallBig(t *testing.T) {
+	ctx, cancel, protonDrive := setup(t, true)
+	t.Cleanup(func() {
+		defer cancel()
+		defer tearDown(t, ctx, protonDrive)
+	})
+
+	log.Println("Create a new draft revision of integrationTestImage.png")
+	uploadFileByFilepath(t, ctx, protonDrive, "", "integrationTestImage.png", "testcase/empty.txt", 1)
+	checkRevisions(protonDrive, ctx, t, "integrationTestImage.png", 1, 0, 1, 0)
+	checkActiveFileListing(t, ctx, protonDrive, []string{})
+
+	log.Println("Create a new draft revision of integrationTestImage.png again")
+	uploadFileByFilepath(t, ctx, protonDrive, "", "integrationTestImage.png", "testcase/empty.txt", 1)
+	checkRevisions(protonDrive, ctx, t, "integrationTestImage.png", 1, 0, 1, 0)
+	checkActiveFileListing(t, ctx, protonDrive, []string{})
+
+	log.Println("Create a new revision and don't commit integrationTestImage.png")
+	uploadFileByFilepath(t, ctx, protonDrive, "", "integrationTestImage.png", "testcase/empty.txt", 2)
+	checkRevisions(protonDrive, ctx, t, "integrationTestImage.png", 1, 0, 1, 0)
+	checkActiveFileListing(t, ctx, protonDrive, []string{})
+
+	log.Println("Create a new revision and commit it to replace integrationTestImage.png")
+	uploadFileByFilepath(t, ctx, protonDrive, "", "integrationTestImage.png", "testcase/empty.txt", 0) /* Add a revision */
+	checkRevisions(protonDrive, ctx, t, "integrationTestImage.png", 1, 1, 0, 0)
+	downloadFile(t, ctx, protonDrive, "", "integrationTestImage.png", "testcase/empty.txt", "")
+	checkActiveFileListing(t, ctx, protonDrive, []string{"/integrationTestImage.png"})
+
+	log.Println("Create a new revision 2 and don't commit integrationTestImage.png")
+	uploadFileByFilepath(t, ctx, protonDrive, "", "integrationTestImage.png", "testcase/empty.txt", 2)
+	checkRevisions(protonDrive, ctx, t, "integrationTestImage.png", 2, 1, 1, 0)
+	checkActiveFileListing(t, ctx, protonDrive, []string{"/integrationTestImage.png"})
+
+	// testing the reduce new revision size
+	log.Println("Create a new revision 2 and commit it to replace integrationTestImage.png")
+	uploadFileByFilepath(t, ctx, protonDrive, "", "integrationTestImage.png", "testcase/integrationTestImage.png", 0) /* Add a revision */
+	checkRevisions(protonDrive, ctx, t, "integrationTestImage.png", 2, 1, 0, 1)
+	downloadFile(t, ctx, protonDrive, "", "integrationTestImage.png", "testcase/integrationTestImage.png", "")
 	checkActiveFileListing(t, ctx, protonDrive, []string{"/integrationTestImage.png"})
 
 	log.Println("Delete file integrationTestImage.png")
@@ -125,13 +223,13 @@ func TestUploadAndDeleteAnEmptyFileAtRoot(t *testing.T) {
 	})
 
 	log.Println("Upload empty.txt")
-	uploadFileByFilepath(t, ctx, protonDrive, "", "empty.txt", "testcase/empty.txt", false)
+	uploadFileByFilepath(t, ctx, protonDrive, "", "empty.txt", "testcase/empty.txt", 0)
 	checkRevisions(protonDrive, ctx, t, "empty.txt", 1, 1, 0, 0)
 	checkActiveFileListing(t, ctx, protonDrive, []string{"/empty.txt"})
 	downloadFile(t, ctx, protonDrive, "", "empty.txt", "testcase/empty.txt", "")
 
 	log.Println("Upload a new revision to replace empty.txt")
-	uploadFileByFilepath(t, ctx, protonDrive, "", "empty.txt", "testcase/empty.txt", false) /* Add a revision */
+	uploadFileByFilepath(t, ctx, protonDrive, "", "empty.txt", "testcase/empty.txt", 0) /* Add a revision */
 	checkRevisions(protonDrive, ctx, t, "empty.txt", 2, 1, 0, 1)
 	downloadFile(t, ctx, protonDrive, "", "empty.txt", "testcase/empty.txt", "")
 	checkActiveFileListing(t, ctx, protonDrive, []string{"/empty.txt"})
@@ -153,13 +251,13 @@ func TestUploadAndDownloadAndDeleteAFileAtAFolderOneLevelFromRoot(t *testing.T) 
 	checkActiveFileListing(t, ctx, protonDrive, []string{"/level1"})
 
 	log.Println("Upload integrationTestImage.png to level1")
-	uploadFileByFilepath(t, ctx, protonDrive, "level1", "integrationTestImage.png", "testcase/integrationTestImage.png", false)
+	uploadFileByFilepath(t, ctx, protonDrive, "level1", "integrationTestImage.png", "testcase/integrationTestImage.png", 0)
 	checkRevisions(protonDrive, ctx, t, "integrationTestImage.png", 1, 1, 0, 0)
 	checkActiveFileListing(t, ctx, protonDrive, []string{"/level1", "/level1/integrationTestImage.png"})
 	downloadFile(t, ctx, protonDrive, "level1", "integrationTestImage.png", "testcase/integrationTestImage.png", "")
 
 	log.Println("Upload a new revision to replace integrationTestImage.png in level1")
-	uploadFileByFilepath(t, ctx, protonDrive, "level1", "integrationTestImage.png", "testcase/integrationTestImage2.png", false) /* Add a revision */
+	uploadFileByFilepath(t, ctx, protonDrive, "level1", "integrationTestImage.png", "testcase/integrationTestImage2.png", 0) /* Add a revision */
 	checkRevisions(protonDrive, ctx, t, "integrationTestImage.png", 2, 1, 0, 1)
 	downloadFile(t, ctx, protonDrive, "level1", "integrationTestImage.png", "testcase/integrationTestImage2.png", "")
 
@@ -204,7 +302,7 @@ func TestCreateAndMoveAndDeleteFolderWithAFile(t *testing.T) {
 	checkActiveFileListing(t, ctx, protonDrive, []string{"/src"})
 
 	log.Println("Upload integrationTestImage.png to src")
-	uploadFileByFilepath(t, ctx, protonDrive, "src", "integrationTestImage.png", "testcase/integrationTestImage.png", false)
+	uploadFileByFilepath(t, ctx, protonDrive, "src", "integrationTestImage.png", "testcase/integrationTestImage.png", 0)
 	checkRevisions(protonDrive, ctx, t, "integrationTestImage.png", 1, 1, 0, 0)
 	checkActiveFileListing(t, ctx, protonDrive, []string{"/src", "/src/integrationTestImage.png"})
 	downloadFile(t, ctx, protonDrive, "src", "integrationTestImage.png", "testcase/integrationTestImage.png", "")
@@ -214,7 +312,7 @@ func TestCreateAndMoveAndDeleteFolderWithAFile(t *testing.T) {
 	checkActiveFileListing(t, ctx, protonDrive, []string{"/src", "/src/integrationTestImage.png", "/dst"})
 
 	log.Println("Upload a new revision to replace integrationTestImage.png in src")
-	uploadFileByFilepath(t, ctx, protonDrive, "src", "integrationTestImage.png", "testcase/integrationTestImage2.png", false) /* Add a revision */
+	uploadFileByFilepath(t, ctx, protonDrive, "src", "integrationTestImage.png", "testcase/integrationTestImage2.png", 0) /* Add a revision */
 	checkRevisions(protonDrive, ctx, t, "integrationTestImage.png", 2, 1, 0, 1)
 	downloadFile(t, ctx, protonDrive, "src", "integrationTestImage.png", "testcase/integrationTestImage2.png", "")
 	checkActiveFileListing(t, ctx, protonDrive, []string{"/src", "/src/integrationTestImage.png", "/dst"})
@@ -240,7 +338,7 @@ func TestCreateAndMoveAndDeleteAFileOneLevelFromRoot(t *testing.T) {
 	checkActiveFileListing(t, ctx, protonDrive, []string{"/src"})
 
 	log.Println("Upload integrationTestImage.png to src")
-	uploadFileByFilepath(t, ctx, protonDrive, "src", "integrationTestImage.png", "testcase/integrationTestImage.png", false)
+	uploadFileByFilepath(t, ctx, protonDrive, "src", "integrationTestImage.png", "testcase/integrationTestImage.png", 0)
 	checkRevisions(protonDrive, ctx, t, "integrationTestImage.png", 1, 1, 0, 0)
 	checkActiveFileListing(t, ctx, protonDrive, []string{"/src", "/src/integrationTestImage.png"})
 	downloadFile(t, ctx, protonDrive, "src", "integrationTestImage.png", "testcase/integrationTestImage.png", "")
@@ -250,7 +348,7 @@ func TestCreateAndMoveAndDeleteAFileOneLevelFromRoot(t *testing.T) {
 	checkActiveFileListing(t, ctx, protonDrive, []string{"/src", "/src/integrationTestImage.png", "/dst"})
 
 	log.Println("Upload a new revision to replace integrationTestImage.png in src")
-	uploadFileByFilepath(t, ctx, protonDrive, "src", "integrationTestImage.png", "testcase/integrationTestImage2.png", false) /* Add a revision */
+	uploadFileByFilepath(t, ctx, protonDrive, "src", "integrationTestImage.png", "testcase/integrationTestImage2.png", 0) /* Add a revision */
 	checkRevisions(protonDrive, ctx, t, "integrationTestImage.png", 2, 1, 0, 1)
 	downloadFile(t, ctx, protonDrive, "src", "integrationTestImage.png", "testcase/integrationTestImage2.png", "")
 	checkActiveFileListing(t, ctx, protonDrive, []string{"/src", "/src/integrationTestImage.png", "/dst"})
@@ -293,13 +391,13 @@ func TestUploadLargeNumberOfBlocks(t *testing.T) {
 	file2ContentReader := strings.NewReader(file2Content)
 
 	log.Println("Upload fileContent.txt")
-	uploadFileByReader(t, ctx, protonDrive, "", filename, file1ContentReader, false)
+	uploadFileByReader(t, ctx, protonDrive, "", filename, file1ContentReader, 0)
 	checkRevisions(protonDrive, ctx, t, filename, 1, 1, 0, 0)
 	checkActiveFileListing(t, ctx, protonDrive, []string{"/" + filename})
 	downloadFile(t, ctx, protonDrive, "", filename, "", file1Content)
 
 	log.Println("Upload a new revision to replace fileContent.txt")
-	uploadFileByReader(t, ctx, protonDrive, "", filename, file2ContentReader, false)
+	uploadFileByReader(t, ctx, protonDrive, "", filename, file2ContentReader, 0)
 	checkRevisions(protonDrive, ctx, t, filename, 2, 1, 0, 1)
 	checkActiveFileListing(t, ctx, protonDrive, []string{"/" + filename})
 	downloadFile(t, ctx, protonDrive, "", filename, "", file2Content)
