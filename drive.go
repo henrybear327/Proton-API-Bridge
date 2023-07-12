@@ -3,8 +3,10 @@ package proton_api_bridge
 import (
 	"context"
 	"log"
+	"runtime"
 
 	"github.com/henrybear327/Proton-API-Bridge/common"
+	"golang.org/x/sync/semaphore"
 
 	"github.com/ProtonMail/gopenpgp/v2/crypto"
 	"github.com/henrybear327/go-proton-api"
@@ -27,6 +29,8 @@ type ProtonDrive struct {
 	signatureAddress string
 
 	linkCache *linkCache
+
+	uploadEncryptionSem *semaphore.Weighted
 }
 
 func NewDefaultConfig() *common.Config {
@@ -144,6 +148,8 @@ func NewProtonDrive(ctx context.Context, config *common.Config, authHandler prot
 		signatureAddress: mainShare.Creator,
 
 		linkCache: newLinkCache(config.DisableLinkCaching),
+
+		uploadEncryptionSem: semaphore.NewWeighted(int64(runtime.GOMAXPROCS(0))),
 	}, credentials, nil
 }
 
