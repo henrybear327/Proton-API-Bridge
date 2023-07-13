@@ -108,6 +108,7 @@ V2 will bring in optimizations and enhancements, such as optimizing uploading an
 ## V2
 
 - [ ] Confirm the HMAC algorithm -> if you create a draft using integration test, and then use the web frontend to finish the upload (you will see overwrite pop-up), and then use the web frontend to upload again the same file, but this time you will have 2 files with duplicated names
+- [ ] Might have missing signature issues on some old accounts, e.g. GetHashKey on rootLink might fail -> currently have a quick patch, but might need to double check the behavior
 - [ ] Mimetype detection by [using the file content itself](github.com/gabriel-vasile/mimetype)
 - [ ] Remove e.g. proton.link related exposures in the function signature (this library should abstract them all)
 - [ ] Documentation
