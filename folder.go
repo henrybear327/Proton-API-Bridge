@@ -213,6 +213,7 @@ func (protonDrive *ProtonDrive) CreateNewFolder(ctx context.Context, parentLink 
 		return "", err
 	}
 
+	// FIXME: check for duplicated filename by relying on checkAvailableHashes
 	// if the folder name already exist, this call will return an error
 	createFolderResp, err := protonDrive.c.CreateFolder(ctx, protonDrive.MainShare.ShareID, createFolderReq)
 	if err != nil {

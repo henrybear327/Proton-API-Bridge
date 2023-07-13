@@ -149,15 +149,40 @@ func (protonDrive *ProtonDrive) SearchByNameInActiveFolder(
 		return nil, nil
 	}
 
+	// get target name Hash
 	parentNodeKR, err := protonDrive.getLinkKRByID(ctx, folderLink.ParentLinkID)
 	if err != nil {
 		return nil, err
 	}
 
-	// get current node's keyring
 	folderLinkKR, err := folderLink.GetKeyRing(parentNodeKR, protonDrive.AddrKR)
 	if err != nil {
 		return nil, err
+	}
+
+	folderHashKey, err := folderLink.GetHashKey(folderLinkKR)
+	if err != nil {
+		return nil, err
+	}
+
+	targetNameHash, err := proton.GetNameHash(targetName, folderHashKey)
+	if err != nil {
+		return nil, err
+	}
+
+	// use available hash to check if it exists
+	// more efficient than linear scan to just do existence check
+	// used in rclone when Put(), it will try to see if the object exists or not
+	res, err := protonDrive.c.CheckAvailableHashes(ctx, protonDrive.MainShare.ShareID, folderLink.LinkID, proton.CheckAvailableHashesReq{
+		Hashes: []string{targetNameHash},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if len(res.AvailableHashes) == 1 {
+		// name isn't taken == name doesn't exist
+		return nil, nil
 	}
 
 	childrenLinks, err := protonDrive.c.ListChildren(ctx, protonDrive.MainShare.ShareID, folderLink.LinkID, true)
@@ -169,14 +194,9 @@ func (protonDrive *ProtonDrive) SearchByNameInActiveFolder(
 			continue
 		}
 
-		name, err := childLink.GetName(folderLinkKR, protonDrive.AddrKR)
-		if err != nil {
-			return nil, err
-		}
-
-		if searchForFile && childLink.Type == proton.LinkTypeFile && name == targetName {
+		if searchForFile && childLink.Type == proton.LinkTypeFile && childLink.Hash == targetNameHash {
 			return &childLink, nil
-		} else if searchForFolder && childLink.Type == proton.LinkTypeFolder && name == targetName {
+		} else if searchForFolder && childLink.Type == proton.LinkTypeFolder && childLink.Hash == targetNameHash {
 			return &childLink, nil
 		}
 	}

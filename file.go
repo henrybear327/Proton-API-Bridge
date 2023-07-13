@@ -274,7 +274,7 @@ func (protonDrive *ProtonDrive) createFileUploadDraft(ctx context.Context, paren
 	createFileAction := func() (*proton.CreateFileRes, *proton.Link, error) {
 		createFileResp, err := protonDrive.c.CreateFile(ctx, protonDrive.MainShare.ShareID, createFileReq)
 		if err != nil {
-			// FIXME: check for duplicated filename by relying on checkAvailableHashes
+			// FIXME: check for duplicated filename by relying on checkAvailableHashes -> able to retrieve linkID too
 			// Also saving generating resources such as new nodeKR, etc.
 
 			if err != proton.ErrFileNameExist {
