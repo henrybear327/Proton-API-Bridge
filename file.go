@@ -49,6 +49,41 @@ func (protonDrive *ProtonDrive) GetRevisions(ctx context.Context, link *proton.L
 	return ret, nil
 }
 
+func (protonDrive *ProtonDrive) GetActiveRevisionAttrs(ctx context.Context, link *proton.Link) (*FileSystemAttrs, error) {
+	if link == nil {
+		return nil, ErrLinkMustNotBeNil
+	}
+
+	revisionsMetadata, err := protonDrive.GetRevisions(ctx, link, proton.RevisionStateActive)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(revisionsMetadata) != 1 {
+		return nil, ErrCantFindActiveRevision
+	}
+
+	nodeKR, err := protonDrive.getLinkKR(ctx, link)
+	if err != nil {
+		return nil, err
+	}
+
+	revisionXAttrCommon, err := revisionsMetadata[0].GetDecXAttrString(protonDrive.AddrKR, nodeKR)
+	if err != nil {
+		return nil, err
+	}
+
+	modificationTime, err := iso8601.ParseString(revisionXAttrCommon.ModificationTime)
+	if err != nil {
+		return nil, err
+	}
+
+	return &FileSystemAttrs{
+		ModificationTime: modificationTime,
+		Size:             revisionXAttrCommon.Size,
+	}, nil
+}
+
 func (protonDrive *ProtonDrive) GetActiveRevisionWithAttrs(ctx context.Context, link *proton.Link) (*proton.Revision, *FileSystemAttrs, error) {
 	if link == nil {
 		return nil, nil, ErrLinkMustNotBeNil
