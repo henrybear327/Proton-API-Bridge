@@ -4,11 +4,13 @@ import (
 	"context"
 	"sync"
 
+	"github.com/ProtonMail/gopenpgp/v2/crypto"
 	"github.com/henrybear327/go-proton-api"
 )
 
 type cacheEntry struct {
 	link *proton.Link
+	kr   *crypto.KeyRing
 }
 
 type cache struct {
@@ -25,41 +27,92 @@ func newCache(disableCaching bool) *cache {
 	}
 }
 
-func (linkCache *cache) _getLink(linkID string) *proton.Link {
-	if linkCache.disableCaching {
+func (cache *cache) _get(linkID string) *cacheEntry {
+	if cache.disableCaching {
 		return nil
 	}
 
-	linkCache.RLock()
-	defer linkCache.RUnlock()
+	cache.RLock()
+	defer cache.RUnlock()
 
-	if data, ok := linkCache.data[linkID]; ok && data.link != nil {
-		return data.link
+	if data, ok := cache.data[linkID]; ok {
+		return data
 	}
 	return nil
 }
 
-func (linkCache *cache) _insertLink(linkID string, link *proton.Link) {
-	if linkCache.disableCaching {
+func (cache *cache) _insert(linkID string, link *proton.Link, kr *crypto.KeyRing) {
+	if cache.disableCaching {
 		return
 	}
 
-	linkCache.Lock()
-	defer linkCache.Unlock()
+	cache.Lock()
+	defer cache.Unlock()
 
-	linkCache.data[linkID] = &cacheEntry{
+	cache.data[linkID] = &cacheEntry{
 		link: link,
+		kr:   kr,
 	}
 }
 
-func (protonDrive *ProtonDrive) getLink(ctx context.Context, linkID string) (*proton.Link, error) {
-	// attempt to get from cache first
-	if link := protonDrive.cache._getLink(linkID); link != nil {
-		// log.Println("From cache")
-		return link, nil
+/* The original non-caching version, which resolves the keyring recursively */
+func (protonDrive *ProtonDrive) _getLinkKRByID(ctx context.Context, linkID string) (*crypto.KeyRing, error) {
+	if linkID == "" {
+		// most likely someone requested root link's parent link, which happen to be ""
+		// return protonDrive.MainShareKR.Copy() // we need to return a deep copy since the keyring will be freed by the caller when it finishes using the keyring -> now we go through caching, so we won't clear kr
+
+		return protonDrive.MainShareKR, nil
 	}
 
-	// log.Println("Not from cache")
+	link, err := protonDrive.getLink(ctx, linkID)
+	if err != nil {
+		return nil, err
+	}
+
+	return protonDrive._getLinkKR(ctx, link)
+}
+
+/* The original non-caching version, which resolves the keyring recursively */
+func (protonDrive *ProtonDrive) _getLinkKR(ctx context.Context, link *proton.Link) (*crypto.KeyRing, error) {
+	if link.ParentLinkID == "" { // link is rootLink
+		nodeKR, err := link.GetKeyRing(protonDrive.MainShareKR, protonDrive.AddrKR)
+		if err != nil {
+			return nil, err
+		}
+
+		return nodeKR, nil
+	}
+
+	parentLink, err := protonDrive.getLink(ctx, link.ParentLinkID)
+	if err != nil {
+		return nil, err
+	}
+
+	// parentNodeKR is used to decrypt the current node's KR, as each node has its keyring, which can be decrypted by its parent
+	parentNodeKR, err := protonDrive._getLinkKR(ctx, parentLink)
+	if err != nil {
+		return nil, err
+	}
+
+	nodeKR, err := link.GetKeyRing(parentNodeKR, protonDrive.AddrKR)
+	if err != nil {
+		return nil, err
+	}
+
+	return nodeKR, nil
+}
+
+func (protonDrive *ProtonDrive) getLink(ctx context.Context, linkID string) (*proton.Link, error) {
+	if linkID == "" {
+		// this is only possible when doing rootLink's parent, which should be handled beforehand
+		return nil, ErrWrongUsageOfGetLink
+	}
+
+	// attempt to get from cache first
+	if data := protonDrive.cache._get(linkID); data != nil && data.link != nil {
+		return data.link, nil
+	}
+
 	// no cached data, fetch
 	link, err := protonDrive.c.GetLink(ctx, protonDrive.MainShare.ShareID, linkID)
 	if err != nil {
@@ -67,7 +120,83 @@ func (protonDrive *ProtonDrive) getLink(ctx context.Context, linkID string) (*pr
 	}
 
 	// populate cache
-	protonDrive.cache._insertLink(linkID, &link)
+	protonDrive.cache._insert(linkID, &link, nil)
 
 	return &link, nil
 }
+
+func (protonDrive *ProtonDrive) getLinkKR(ctx context.Context, link *proton.Link) (*crypto.KeyRing, error) {
+	if protonDrive.cache.disableCaching {
+		return protonDrive._getLinkKR(ctx, link)
+	}
+
+	if link == nil {
+		return nil, ErrWrongUsageOfGetLinkKR
+	}
+
+	// attempt to get from cache first
+	if data := protonDrive.cache._get(link.LinkID); data != nil && data.link != nil {
+		if data.kr != nil {
+			return data.kr, nil
+		}
+
+		// decrypt keyring and cache it
+		parentNodeKR, err := protonDrive.getLinkKRByID(ctx, data.link.ParentLinkID)
+		if err != nil {
+			return nil, err
+		}
+
+		kr, err := data.link.GetKeyRing(parentNodeKR, protonDrive.AddrKR)
+		if err != nil {
+			return nil, err
+		}
+		data.kr = kr
+		return data.kr, nil
+	}
+
+	// no cached data, fetch
+	protonDrive.cache._insert(link.LinkID, link, nil)
+
+	return protonDrive.getLinkKR(ctx, link)
+}
+
+func (protonDrive *ProtonDrive) getLinkKRByID(ctx context.Context, linkID string) (*crypto.KeyRing, error) {
+	if protonDrive.cache.disableCaching {
+		return protonDrive._getLinkKRByID(ctx, linkID)
+	}
+
+	if linkID == "" {
+		return protonDrive.MainShareKR, nil
+	}
+
+	// attempt to get from cache first
+	if data := protonDrive.cache._get(linkID); data != nil && data.link != nil {
+		return protonDrive.getLinkKR(ctx, data.link)
+	}
+
+	// log.Println("Not from cache")
+	// no cached data, fetch
+	link, err := protonDrive.getLink(ctx, linkID)
+	if err != nil {
+		return nil, err
+	}
+
+	return protonDrive.getLinkKR(ctx, link)
+}
+
+// TODO: handle removal upon rmdir, mv, etc. cases
+
+// func (protonDrive *ProtonDrive) clearCache() {
+// 	if protonDrive.cache.disableCaching {
+// 		return
+// 	}
+
+// 	protonDrive.cache.Lock()
+// 	defer protonDrive.cache.Unlock()
+
+// 	for _, entry := range protonDrive.cache.data {
+// 		entry.kr.ClearPrivateParams()
+// 	}
+
+// 	protonDrive.cache.data = make(map[string]*cacheEntry)
+// }

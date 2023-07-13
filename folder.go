@@ -32,16 +32,14 @@ func (protonDrive *ProtonDrive) ListDirectory(
 		}
 
 		if childrenLinks != nil {
-			folderParentKR, err := protonDrive.getNodeKRByID(ctx, folderLink.ParentLinkID)
+			folderParentKR, err := protonDrive.getLinkKRByID(ctx, folderLink.ParentLinkID)
 			if err != nil {
 				return nil, err
 			}
-			defer folderParentKR.ClearPrivateParams()
 			folderLinkKR, err := folderLink.GetKeyRing(folderParentKR, protonDrive.AddrKR)
 			if err != nil {
 				return nil, err
 			}
-			defer folderLinkKR.ClearPrivateParams()
 
 			for i := range childrenLinks {
 				if childrenLinks[i].State != proton.LinkStateActive {
@@ -142,7 +140,6 @@ func (protonDrive *ProtonDrive) ListDirectoriesRecursively(
 				if err != nil {
 					return err
 				}
-				defer linkKR.ClearPrivateParams()
 
 				for _, childLink := range childrenLinks {
 					err = protonDrive.ListDirectoriesRecursively(ctx, linkKR, &childLink, download, maxDepth, curDepth+1, excludeRoot, currentPath, paths)
@@ -167,7 +164,7 @@ func (protonDrive *ProtonDrive) CreateNewFolderByID(ctx context.Context, parentL
 }
 
 func (protonDrive *ProtonDrive) CreateNewFolder(ctx context.Context, parentLink *proton.Link, folderName string) (string, error) {
-	parentNodeKR, err := protonDrive.getNodeKR(ctx, parentLink)
+	parentNodeKR, err := protonDrive.getLinkKR(ctx, parentLink)
 	if err != nil {
 		return "", err
 	}
@@ -282,7 +279,7 @@ func (protonDrive *ProtonDrive) moveLink(ctx context.Context, srcLink *proton.Li
 		SignatureAddress: protonDrive.signatureAddress,
 	}
 
-	dstParentKR, err := protonDrive.getNodeKR(ctx, dstParentLink)
+	dstParentKR, err := protonDrive.getLinkKR(ctx, dstParentLink)
 	if err != nil {
 		return err
 	}
@@ -301,7 +298,7 @@ func (protonDrive *ProtonDrive) moveLink(ctx context.Context, srcLink *proton.Li
 		return err
 	}
 
-	srcParentKR, err := protonDrive.getNodeKRByID(ctx, srcLink.ParentLinkID)
+	srcParentKR, err := protonDrive.getLinkKRByID(ctx, srcLink.ParentLinkID)
 	if err != nil {
 		return err
 	}

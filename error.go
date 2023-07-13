@@ -17,4 +17,6 @@ var (
 	ErrDraftExists                           = errors.New("a draft exist - usually this means a file is being uploaded at another client, or, there was a failed upload attempt")
 	ErrCantFindActiveRevision                = errors.New("can't find an active revision")
 	ErrCantFindDraftRevision                 = errors.New("can't find a draft revision")
+	ErrWrongUsageOfGetLinkKR                 = errors.New("internal error for GetLinkKR - nil passed in for link")
+	ErrWrongUsageOfGetLink                   = errors.New("internal error for getLink - empty linkID passed in")
 )

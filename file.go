@@ -68,7 +68,7 @@ func (protonDrive *ProtonDrive) GetActiveRevisionWithAttrs(ctx context.Context, 
 		return nil, nil, err
 	}
 
-	nodeKR, err := protonDrive.getNodeKR(ctx, link)
+	nodeKR, err := protonDrive.getLinkKR(ctx, link)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -94,7 +94,7 @@ func (protonDrive *ProtonDrive) DownloadFile(ctx context.Context, link *proton.L
 		return nil, nil, ErrLinkTypeMustToBeFileType
 	}
 
-	parentNodeKR, err := protonDrive.getNodeKRByID(ctx, link.ParentLinkID)
+	parentNodeKR, err := protonDrive.getLinkKRByID(ctx, link.ParentLinkID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -218,7 +218,7 @@ func (protonDrive *ProtonDrive) handleRevisionConflict(ctx context.Context, link
 }
 
 func (protonDrive *ProtonDrive) createFileUploadDraft(ctx context.Context, parentLink *proton.Link, filename string, modTime time.Time, mimeType string) (string, string, *crypto.SessionKey, *crypto.KeyRing, error) {
-	parentNodeKR, err := protonDrive.getNodeKR(ctx, parentLink)
+	parentNodeKR, err := protonDrive.getLinkKR(ctx, parentLink)
 	if err != nil {
 		return "", "", nil, nil, err
 	}
@@ -336,7 +336,7 @@ func (protonDrive *ProtonDrive) createFileUploadDraft(ctx context.Context, paren
 		linkID = link.LinkID
 
 		// get original newSessionKey and newNodeKR
-		parentNodeKR, err = protonDrive.getNodeKRByID(ctx, link.ParentLinkID)
+		parentNodeKR, err = protonDrive.getLinkKRByID(ctx, link.ParentLinkID)
 		if err != nil {
 			return "", "", nil, nil, err
 		}

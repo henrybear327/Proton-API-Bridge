@@ -37,7 +37,7 @@ func (protonDrive *ProtonDrive) SearchByNameRecursivelyByID(ctx context.Context,
 	if folderLink.Type != proton.LinkTypeFolder {
 		return nil, ErrLinkTypeMustToBeFolderType
 	}
-	folderKeyRing, err := protonDrive.getNodeKRByID(ctx, folderLink.ParentLinkID)
+	folderKeyRing, err := protonDrive.getLinkKRByID(ctx, folderLink.ParentLinkID)
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +55,7 @@ func (protonDrive *ProtonDrive) SearchByNameRecursively(ctx context.Context, fol
 	if folderLink.Type != proton.LinkTypeFolder {
 		return nil, ErrLinkTypeMustToBeFolderType
 	}
-	folderKeyRing, err := protonDrive.getNodeKRByID(ctx, folderLink.ParentLinkID)
+	folderKeyRing, err := protonDrive.getLinkKRByID(ctx, folderLink.ParentLinkID)
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +98,6 @@ func (protonDrive *ProtonDrive) searchByNameRecursively(
 		if err != nil {
 			return nil, err
 		}
-		defer linkKR.ClearPrivateParams()
 
 		for _, childLink := range childrenLinks {
 			ret, err := protonDrive.searchByNameRecursively(ctx, linkKR, &childLink, targetName, linkType, listAllActiveOrDraftFiles)
@@ -150,7 +149,7 @@ func (protonDrive *ProtonDrive) SearchByNameInActiveFolder(
 		return nil, nil
 	}
 
-	parentNodeKR, err := protonDrive.getNodeKRByID(ctx, folderLink.ParentLinkID)
+	parentNodeKR, err := protonDrive.getLinkKRByID(ctx, folderLink.ParentLinkID)
 	if err != nil {
 		return nil, err
 	}
@@ -160,7 +159,6 @@ func (protonDrive *ProtonDrive) SearchByNameInActiveFolder(
 	if err != nil {
 		return nil, err
 	}
-	defer folderLinkKR.ClearPrivateParams()
 
 	childrenLinks, err := protonDrive.c.ListChildren(ctx, protonDrive.MainShare.ShareID, folderLink.LinkID, true)
 	if err != nil {
