@@ -441,11 +441,11 @@ func (protonDrive *ProtonDrive) uploadAndCollectBlockData(ctx context.Context, n
 	shouldContinue := true
 	for i := 1; shouldContinue; i++ {
 		// read at most data of size UPLOAD_BLOCK_SIZE
+		// for some reason, .Read might not actually read up to buffer size -> use io.ReadFull
 		data := make([]byte, UPLOAD_BLOCK_SIZE) // FIXME: get block size from the server config instead of hardcoding it
-		readBytes, err := file.Read(data)
-
+		readBytes, err := io.ReadFull(file, data)
 		if err != nil {
-			if err == io.EOF {
+			if err == io.EOF || err == io.ErrUnexpectedEOF {
 				// might still have data to read!
 				if readBytes == 0 {
 					break
