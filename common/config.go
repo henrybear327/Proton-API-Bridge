@@ -104,7 +104,7 @@ func NewConfigForIntegrationTests() *Config {
 		DestructiveIntegrationTest:     true,
 		EmptyTrashAfterIntegrationTest: true,
 		ReplaceExistingDraft:           false,
-		DisableCaching:                 false,
+		DisableCaching:                 true,
 
 		DataFolderName: "data",
 	}
