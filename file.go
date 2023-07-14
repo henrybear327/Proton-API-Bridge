@@ -23,6 +23,9 @@ type FileSystemAttrs struct {
 }
 
 func (protonDrive *ProtonDrive) DownloadFileByID(ctx context.Context, linkID string) ([]byte, *FileSystemAttrs, error) {
+	/* It's like event system, we need to get the latest information before creating the move request! */
+	protonDrive.removeLinkIDFromCache(linkID, false)
+
 	link, err := protonDrive.getLink(ctx, linkID)
 	if err != nil {
 		return nil, nil, err

@@ -2,6 +2,7 @@ package proton_api_bridge
 
 import (
 	"context"
+	"log"
 	"sync"
 
 	"github.com/ProtonMail/gopenpgp/v2/crypto"
@@ -15,6 +16,7 @@ type cacheEntry struct {
 
 type cache struct {
 	data           map[string]*cacheEntry
+	children       map[string]map[string]interface{}
 	disableCaching bool
 
 	sync.RWMutex
@@ -23,9 +25,26 @@ type cache struct {
 func newCache(disableCaching bool) *cache {
 	return &cache{
 		data:           make(map[string]*cacheEntry),
+		children:       make(map[string]map[string]interface{}),
 		disableCaching: disableCaching,
 	}
 }
+
+// func (cache *cache) _debug() {
+// 	if cache.disableCaching {
+// 		return
+// 	}
+
+// 	cache.RLock()
+// 	defer cache.RUnlock()
+
+// 	for k, v := range cache.data {
+// 		log.Printf("data %#v %p", k, v.link)
+// 	}
+// 	for k, v := range cache.children {
+// 		log.Printf("children %#v %#v", k, v)
+// 	}
+// }
 
 func (cache *cache) _get(linkID string) *cacheEntry {
 	if cache.disableCaching {
@@ -53,6 +72,69 @@ func (cache *cache) _insert(linkID string, link *proton.Link, kr *crypto.KeyRing
 		link: link,
 		kr:   kr,
 	}
+
+	if link != nil {
+		if data, ok := cache.children[link.ParentLinkID]; ok {
+			data[link.LinkID] = nil
+			cache.children[link.ParentLinkID] = data
+		} else {
+			tmp := make(map[string]interface{})
+			tmp[link.LinkID] = nil
+			cache.children[link.ParentLinkID] = tmp
+
+		}
+	} else {
+		// TODO: we should never have missing link though
+		log.Fatalln("we should never have missing link though")
+	}
+}
+
+// due to recursion, we can't perform locking here
+// this function should only be called from _remove
+func (cache *cache) _remove_nolock(linkID string, includingChildren bool) {
+	var link *proton.Link
+	if data, ok := cache.data[linkID]; ok {
+		link = data.link
+		delete(cache.data, linkID)
+	} else {
+		return
+	}
+
+	// remove linkID from parent's map
+	if data, ok := cache.children[link.ParentLinkID]; ok {
+		if _, ok := data[link.LinkID]; ok {
+			delete(data, link.LinkID)
+			cache.children[link.ParentLinkID] = data
+		} else {
+			log.Fatalln("we have an issue for cache inconsistency where link is not found in the parent's map")
+		}
+	} else {
+		log.Fatalln("we have an issue for cache inconsistency where link's parent map is missing")
+	}
+
+	// we don't recursively go upward to clean up the parent's map
+	// instead, we rely on periodic cache flushing
+	if includingChildren {
+		if data, ok := cache.children[link.LinkID]; ok {
+			for k := range data {
+				cache._remove_nolock(k, true)
+			}
+		} // else {
+		// might have nothing is the link doesn't have any children
+		// }
+		delete(cache.children, link.LinkID)
+	}
+}
+
+func (cache *cache) _remove(linkID string, includingChildren bool) {
+	if cache.disableCaching {
+		return
+	}
+
+	cache.Lock()
+	defer cache.Unlock()
+
+	cache._remove_nolock(linkID, includingChildren)
 }
 
 /* The original non-caching version, which resolves the keyring recursively */
@@ -184,19 +266,32 @@ func (protonDrive *ProtonDrive) getLinkKRByID(ctx context.Context, linkID string
 	return protonDrive.getLinkKR(ctx, link)
 }
 
-// TODO: handle removal upon rmdir, mv, etc. cases
+func (protonDrive *ProtonDrive) removeLinkIDFromCache(linkID string, includingChildren bool) {
+	if protonDrive.cache.disableCaching {
+		return
+	}
 
-// func (protonDrive *ProtonDrive) clearCache() {
-// 	if protonDrive.cache.disableCaching {
-// 		return
-// 	}
+	// log.Println("===================================")
+	// log.Println(linkID, includingChildren)
+	// protonDrive.cache._debug()
+	protonDrive.cache._remove(linkID, includingChildren)
+	// protonDrive.cache._debug()
+	// log.Println("===================================")
+}
 
-// 	protonDrive.cache.Lock()
-// 	defer protonDrive.cache.Unlock()
+func (protonDrive *ProtonDrive) ClearCache() {
+	if protonDrive.cache.disableCaching {
+		return
+	}
 
-// 	for _, entry := range protonDrive.cache.data {
-// 		entry.kr.ClearPrivateParams()
-// 	}
+	protonDrive.cache.Lock()
+	defer protonDrive.cache.Unlock()
 
-// 	protonDrive.cache.data = make(map[string]*cacheEntry)
-// }
+	// TODO: we come back to fix this later
+	// for _, entry := range protonDrive.cache.data {
+	// 	entry.kr.ClearPrivateParams()
+	// }
+
+	protonDrive.cache.data = make(map[string]*cacheEntry)
+	protonDrive.cache.children = make(map[string]map[string]interface{})
+}

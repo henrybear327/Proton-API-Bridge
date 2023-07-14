@@ -136,4 +136,8 @@ V2 will bring in optimizations and enhancements, such as optimizing uploading an
 # Questions
 
 - [x] rclone's folder / file rename detection? -> just implement the interface and rclone will deal with the rest!
-- [ ] How often will we run into 429 on login
+
+# Notes
+
+- Due to caching, functions using `...ByID` needs to perform `protonDrive.removeLinkIDFromCache(linkID, false)` in order to get the latest data!
+	

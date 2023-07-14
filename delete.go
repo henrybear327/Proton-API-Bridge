@@ -12,22 +12,32 @@ func (protonDrive *ProtonDrive) moveToTrash(ctx context.Context, parentLinkID st
 		return err
 	}
 
+	for _, link := range linkIDs {
+		protonDrive.removeLinkIDFromCache(link, true)
+	}
+
 	return nil
 }
 
 func (protonDrive *ProtonDrive) MoveFileToTrashByID(ctx context.Context, linkID string) error {
+	/* It's like event system, we need to get the latest information before creating the move request! */
+	protonDrive.removeLinkIDFromCache(linkID, false)
+
 	fileLink, err := protonDrive.getLink(ctx, linkID)
 	if err != nil {
 		return err
 	}
 	if fileLink.Type != proton.LinkTypeFile {
-		return ErrLinkTypeMustToBeFolderType
+		return ErrLinkTypeMustToBeFileType
 	}
 
 	return protonDrive.moveToTrash(ctx, fileLink.ParentLinkID, linkID)
 }
 
 func (protonDrive *ProtonDrive) MoveFolderToTrashByID(ctx context.Context, linkID string, onlyOnEmpty bool) error {
+	/* It's like event system, we need to get the latest information before creating the move request! */
+	protonDrive.removeLinkIDFromCache(linkID, false)
+
 	folderLink, err := protonDrive.getLink(ctx, linkID)
 	if err != nil {
 		return err
@@ -54,6 +64,8 @@ func (protonDrive *ProtonDrive) MoveFolderToTrashByID(ctx context.Context, linkI
 // Everything in the root folder will be moved to trash
 // Most likely only used for debugging when the key is messed up
 func (protonDrive *ProtonDrive) EmptyRootFolder(ctx context.Context) error {
+	protonDrive.ClearCache()
+
 	links, err := protonDrive.c.ListChildren(ctx, protonDrive.MainShare.ShareID, protonDrive.MainShare.LinkID, true)
 	if err != nil {
 		return err
@@ -92,6 +104,8 @@ func (protonDrive *ProtonDrive) EmptyRootFolder(ctx context.Context) error {
 
 // Empty the trash
 func (protonDrive *ProtonDrive) EmptyTrash(ctx context.Context) error {
+	protonDrive.ClearCache()
+
 	err := protonDrive.c.EmptyTrash(ctx, protonDrive.MainShare.ShareID)
 	if err != nil {
 		return err

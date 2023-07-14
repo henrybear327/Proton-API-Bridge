@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"os"
+	"time"
 
 	"github.com/ProtonMail/gopenpgp/v2/crypto"
 	"github.com/henrybear327/go-proton-api"
@@ -155,6 +156,9 @@ func (protonDrive *ProtonDrive) ListDirectoriesRecursively(
 }
 
 func (protonDrive *ProtonDrive) CreateNewFolderByID(ctx context.Context, parentLinkID string, folderName string) (string, error) {
+	/* It's like event system, we need to get the latest information before creating the move request! */
+	protonDrive.removeLinkIDFromCache(parentLinkID, false)
+
 	parentLink, err := protonDrive.getLink(ctx, parentLinkID)
 	if err != nil {
 		return "", err
@@ -225,6 +229,9 @@ func (protonDrive *ProtonDrive) CreateNewFolder(ctx context.Context, parentLink 
 }
 
 func (protonDrive *ProtonDrive) MoveFileByID(ctx context.Context, srcLinkID, dstParentLinkID string, dstName string) error {
+	/* It's like event system, we need to get the latest information before creating the move request! */
+	protonDrive.removeLinkIDFromCache(srcLinkID, false)
+
 	srcLink, err := protonDrive.getLink(ctx, srcLinkID)
 	if err != nil {
 		return err
@@ -249,6 +256,9 @@ func (protonDrive *ProtonDrive) MoveFile(ctx context.Context, srcLink *proton.Li
 }
 
 func (protonDrive *ProtonDrive) MoveFolderByID(ctx context.Context, srcLinkID, dstParentLinkID, dstName string) error {
+	/* It's like event system, we need to get the latest information before creating the move request! */
+	protonDrive.removeLinkIDFromCache(srcLinkID, false)
+
 	srcLink, err := protonDrive.getLink(ctx, srcLinkID)
 	if err != nil {
 		return err
@@ -310,5 +320,17 @@ func (protonDrive *ProtonDrive) moveLink(ctx context.Context, srcLink *proton.Li
 	req.NodePassphrase = nodePassphrase
 	req.NodePassphraseSignature = srcLink.NodePassphraseSignature
 
-	return protonDrive.c.MoveLink(ctx, protonDrive.MainShare.ShareID, srcLink.LinkID, req)
+	protonDrive.removeLinkIDFromCache(srcLink.LinkID, false)
+
+	// TODO: disable cache when move is in action?
+	// because there might be the case where others read for the same link currently being move -> race condition
+	// argument: cache itself is already outdated in a sense, as we don't even have event system (even if we have, it's still outdated...)
+	err = protonDrive.c.MoveLink(ctx, protonDrive.MainShare.ShareID, srcLink.LinkID, req)
+	if err != nil {
+		return err
+	}
+
+	time.Sleep(5 * time.Second)
+
+	return nil
 }
