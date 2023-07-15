@@ -2,6 +2,7 @@ package proton_api_bridge
 
 import (
 	"context"
+	"io"
 	"log"
 	"os"
 	"time"
@@ -105,11 +106,15 @@ func (protonDrive *ProtonDrive) ListDirectoriesRecursively(
 			log.Println("Downloading", currentPath)
 			defer log.Println("Completes downloading", currentPath)
 
-			byteArray, _, err := protonDrive.DownloadFile(ctx, link)
+			reader, _, _, err := protonDrive.DownloadFile(ctx, link)
 			if err != nil {
 				return err
 			}
 
+			byteArray, err := io.ReadAll(reader)
+			if err != nil {
+				return err
+			}
 			err = os.WriteFile("./"+protonDrive.Config.DataFolderName+"/"+currentPath, byteArray, 0777)
 			if err != nil {
 				return err

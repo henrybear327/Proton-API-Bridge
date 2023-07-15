@@ -19,6 +19,7 @@ We are using a fork of the [proton-go-api](https://github.com/henrybear327/go-pr
 # Drive APIs
 
 > In collaboration with Azimjon Pulatov, in memory of our good old days at Meta, London, in the summer of 2022.
+> Thanks to Anson Chen for the motivation and some initial help on various matters!
 
 Currently, the development are split into 2 versions. 
 V1 supports the features [required by rclone](https://github.com/henrybear327/rclone/blob/master/fs/types.go), such as `file listing`. As the unit and integration tests from rclone have all been passed, we would stabilize this and then move onto developing V2.
@@ -49,6 +50,7 @@ V2 will bring in optimizations and enhancements, such as optimizing uploading an
 - [x] File actions
     - [x] Download
         - [x] Download empty file
+        - [x] Improve large file download handling
         - [x] Properly handle large files and empty files (check iOS codebase)
             - esp. large files, where buffering in-memory will screw up the runtime
         - [x] Check signature and hash
@@ -117,7 +119,6 @@ V2 will bring in optimizations and enhancements, such as optimizing uploading an
 - [ ] Figure out the bottleneck by doing some profiling 
 - [ ] File
     - [ ] Parallel download / upload -> enc/dec is expensive
-    - [ ] Improve large file download handling
     - [ ] [Filename encoding](https://github.com/ProtonMail/WebClients/blob/b4eba99d241af4fdae06ff7138bd651a40ef5d3c/applications/drive/src/app/store/_links/validation.ts#L51)
 - [ ] Commit back to proton-go-api and switch to using upstream (make sure the tag is at the tip though)
 - [ ] Support legacy 2-password mode

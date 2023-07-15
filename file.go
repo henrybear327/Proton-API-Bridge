@@ -22,13 +22,49 @@ type FileSystemAttrs struct {
 	Size             int64
 }
 
-func (protonDrive *ProtonDrive) DownloadFileByID(ctx context.Context, linkID string) ([]byte, *FileSystemAttrs, error) {
+type FileDownloadReader struct {
+	protonDrive *ProtonDrive
+	ctx         context.Context
+
+	data         *bytes.Buffer
+	nodeKR       *crypto.KeyRing
+	sessionKey   *crypto.SessionKey
+	revision     *proton.Revision
+	nextRevision int
+
+	isEOF bool
+}
+
+func (r *FileDownloadReader) Read(p []byte) (int, error) {
+	if r.data.Len() == 0 {
+		// we download and decrypt more content
+		err := r.downloadFileOnRead()
+		if err != nil {
+			return 0, err
+		}
+
+		if r.isEOF {
+			// if the file has been downloaded entirely, we return EOF
+			return 0, io.EOF
+		}
+	}
+
+	return r.data.Read(p)
+}
+
+func (r *FileDownloadReader) Close() error {
+	r.protonDrive = nil
+
+	return nil
+}
+
+func (protonDrive *ProtonDrive) DownloadFileByID(ctx context.Context, linkID string) (io.ReadCloser, int64, *FileSystemAttrs, error) {
 	/* It's like event system, we need to get the latest information before creating the move request! */
 	protonDrive.removeLinkIDFromCache(linkID, false)
 
 	link, err := protonDrive.getLink(ctx, linkID)
 	if err != nil {
-		return nil, nil, err
+		return nil, 0, nil, err
 	}
 
 	return protonDrive.DownloadFile(ctx, link)
@@ -127,50 +163,79 @@ func (protonDrive *ProtonDrive) GetActiveRevisionWithAttrs(ctx context.Context, 
 	}, nil
 }
 
-func (protonDrive *ProtonDrive) DownloadFile(ctx context.Context, link *proton.Link) ([]byte, *FileSystemAttrs, error) {
+func (protonDrive *ProtonDrive) DownloadFile(ctx context.Context, link *proton.Link) (io.ReadCloser, int64, *FileSystemAttrs, error) {
 	if link.Type != proton.LinkTypeFile {
-		return nil, nil, ErrLinkTypeMustToBeFileType
+		return nil, 0, nil, ErrLinkTypeMustToBeFileType
 	}
 
 	parentNodeKR, err := protonDrive.getLinkKRByID(ctx, link.ParentLinkID)
 	if err != nil {
-		return nil, nil, err
+		return nil, 0, nil, err
 	}
 
 	nodeKR, err := link.GetKeyRing(parentNodeKR, protonDrive.AddrKR)
 	if err != nil {
-		return nil, nil, err
+		return nil, 0, nil, err
 	}
 
 	sessionKey, err := link.GetSessionKey(protonDrive.AddrKR, nodeKR)
 	if err != nil {
-		return nil, nil, err
+		return nil, 0, nil, err
 	}
 
 	revision, fileSystemAttrs, err := protonDrive.GetActiveRevisionWithAttrs(ctx, link)
 	if err != nil {
-		return nil, nil, err
+		return nil, 0, nil, err
 	}
 
-	buffer := bytes.NewBuffer(nil)
-	for i := range revision.Blocks {
-		// TODO: parallel download
-		blockReader, err := protonDrive.c.GetBlock(ctx, revision.Blocks[i].BareURL, revision.Blocks[i].Token)
-		if err != nil {
-			return nil, nil, err
-		}
-		defer blockReader.Close()
+	reader := &FileDownloadReader{
+		protonDrive: protonDrive,
+		ctx:         ctx,
 
-		err = decryptBlockIntoBuffer(sessionKey, protonDrive.AddrKR, nodeKR, revision.Blocks[i].Hash, revision.Blocks[i].EncSignature, buffer, blockReader)
-		if err != nil {
-			return nil, nil, err
-		}
+		data:         bytes.NewBuffer(nil),
+		nodeKR:       nodeKR,
+		sessionKey:   sessionKey,
+		revision:     revision,
+		nextRevision: 0,
+
+		isEOF: false,
+	}
+
+	err = reader.downloadFileOnRead()
+	if err != nil {
+		return nil, 0, nil, err
 	}
 
 	if fileSystemAttrs != nil {
-		return buffer.Bytes(), fileSystemAttrs, nil
+		return reader, link.Size, fileSystemAttrs, nil
 	}
-	return buffer.Bytes(), nil, nil
+	return reader, link.Size, nil, nil
+}
+
+func (reader *FileDownloadReader) downloadFileOnRead() error {
+	if len(reader.revision.Blocks) == 0 || len(reader.revision.Blocks) == reader.nextRevision {
+		reader.isEOF = true
+		return nil
+	}
+
+	offset := reader.nextRevision
+	for i := offset; i-offset < DOWNLOAD_BATCH_BLOCK_SIZE && i < len(reader.revision.Blocks); i++ {
+		// TODO: parallel download
+		blockReader, err := reader.protonDrive.c.GetBlock(reader.ctx, reader.revision.Blocks[i].BareURL, reader.revision.Blocks[i].Token)
+		if err != nil {
+			return err
+		}
+		defer blockReader.Close()
+
+		err = decryptBlockIntoBuffer(reader.sessionKey, reader.protonDrive.AddrKR, reader.nodeKR, reader.revision.Blocks[i].Hash, reader.revision.Blocks[i].EncSignature, reader.data, blockReader)
+		if err != nil {
+			return err
+		}
+
+		reader.nextRevision = i + 1
+	}
+
+	return nil
 }
 
 func (protonDrive *ProtonDrive) UploadFileByReader(ctx context.Context, parentLinkID string, filename string, modTime time.Time, file io.Reader, testParam int) (string, int64, error) {

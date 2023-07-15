@@ -211,7 +211,12 @@ func downloadFile(t *testing.T, ctx context.Context, protonDrive *ProtonDrive, p
 	if targetFileLink == nil {
 		t.Fatalf("File %v not found", name)
 	} else {
-		downloadedData, fileSystemAttr, err := protonDrive.DownloadFileByID(ctx, targetFileLink.LinkID)
+		reader, sizeOnServer, fileSystemAttr, err := protonDrive.DownloadFileByID(ctx, targetFileLink.LinkID)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		downloadedData, err := io.ReadAll(reader)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -220,6 +225,9 @@ func downloadFile(t *testing.T, ctx context.Context, protonDrive *ProtonDrive, p
 		if fileSystemAttr == nil {
 			t.Fatalf("FileSystemAttr should not be nil")
 		} else {
+			if sizeOnServer == fileSystemAttr.Size {
+				t.Fatalf("Not possible due to encryption file overhead")
+			}
 			if len(downloadedData) != int(fileSystemAttr.Size) {
 				t.Fatalf("Downloaded file size != uploaded file size: %#v vs %#v", len(downloadedData), int(fileSystemAttr.Size))
 			}
