@@ -15,23 +15,23 @@ type cacheEntry struct {
 }
 
 type cache struct {
-	data           map[string]*cacheEntry
-	children       map[string]map[string]interface{}
-	disableCaching bool
+	data          map[string]*cacheEntry
+	children      map[string]map[string]interface{}
+	enableCaching bool
 
 	sync.RWMutex
 }
 
-func newCache(disableCaching bool) *cache {
+func newCache(enableCaching bool) *cache {
 	return &cache{
-		data:           make(map[string]*cacheEntry),
-		children:       make(map[string]map[string]interface{}),
-		disableCaching: disableCaching,
+		data:          make(map[string]*cacheEntry),
+		children:      make(map[string]map[string]interface{}),
+		enableCaching: enableCaching,
 	}
 }
 
 // func (cache *cache) _debug() {
-// 	if cache.disableCaching {
+// 	if !cache.enableCaching {
 // 		return
 // 	}
 
@@ -47,7 +47,7 @@ func newCache(disableCaching bool) *cache {
 // }
 
 func (cache *cache) _get(linkID string) *cacheEntry {
-	if cache.disableCaching {
+	if !cache.enableCaching {
 		return nil
 	}
 
@@ -61,7 +61,7 @@ func (cache *cache) _get(linkID string) *cacheEntry {
 }
 
 func (cache *cache) _insert(linkID string, link *proton.Link, kr *crypto.KeyRing) {
-	if cache.disableCaching {
+	if !cache.enableCaching {
 		return
 	}
 
@@ -127,7 +127,7 @@ func (cache *cache) _remove_nolock(linkID string, includingChildren bool) {
 }
 
 func (cache *cache) _remove(linkID string, includingChildren bool) {
-	if cache.disableCaching {
+	if !cache.enableCaching {
 		return
 	}
 
@@ -208,7 +208,7 @@ func (protonDrive *ProtonDrive) getLink(ctx context.Context, linkID string) (*pr
 }
 
 func (protonDrive *ProtonDrive) getLinkKR(ctx context.Context, link *proton.Link) (*crypto.KeyRing, error) {
-	if protonDrive.cache.disableCaching {
+	if !protonDrive.cache.enableCaching {
 		return protonDrive._getLinkKR(ctx, link)
 	}
 
@@ -243,7 +243,7 @@ func (protonDrive *ProtonDrive) getLinkKR(ctx context.Context, link *proton.Link
 }
 
 func (protonDrive *ProtonDrive) getLinkKRByID(ctx context.Context, linkID string) (*crypto.KeyRing, error) {
-	if protonDrive.cache.disableCaching {
+	if !protonDrive.cache.enableCaching {
 		return protonDrive._getLinkKRByID(ctx, linkID)
 	}
 
@@ -267,7 +267,7 @@ func (protonDrive *ProtonDrive) getLinkKRByID(ctx context.Context, linkID string
 }
 
 func (protonDrive *ProtonDrive) removeLinkIDFromCache(linkID string, includingChildren bool) {
-	if protonDrive.cache.disableCaching {
+	if !protonDrive.cache.enableCaching {
 		return
 	}
 
@@ -280,7 +280,7 @@ func (protonDrive *ProtonDrive) removeLinkIDFromCache(linkID string, includingCh
 }
 
 func (protonDrive *ProtonDrive) ClearCache() {
-	if protonDrive.cache.disableCaching {
+	if !protonDrive.cache.enableCaching {
 		return
 	}
 

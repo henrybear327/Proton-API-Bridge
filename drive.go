@@ -143,7 +143,7 @@ func NewProtonDrive(ctx context.Context, config *common.Config, authHandler prot
 		addrData:         addrData,
 		signatureAddress: mainShare.Creator,
 
-		cache: newCache(config.DisableCaching),
+		cache: newCache(config.EnableCaching),
 	}, credentials, nil
 }
 

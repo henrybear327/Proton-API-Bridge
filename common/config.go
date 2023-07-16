@@ -17,7 +17,7 @@ type Config struct {
 	DestructiveIntegrationTest     bool // CAUTION: the integration test requires a clean proton drive
 	EmptyTrashAfterIntegrationTest bool // CAUTION: the integration test will clean up all the data in the trash
 	ReplaceExistingDraft           bool // for the file upload replace or keep it as-is option
-	DisableCaching                 bool // link node caching
+	EnableCaching                  bool // link node caching
 
 	/* Drive */
 	DataFolderName string
@@ -58,7 +58,7 @@ func NewConfigWithDefaultValues() *Config {
 		DestructiveIntegrationTest:     false,
 		EmptyTrashAfterIntegrationTest: false,
 		ReplaceExistingDraft:           false,
-		DisableCaching:                 true,
+		EnableCaching:                  true,
 
 		DataFolderName: "data",
 	}
@@ -104,7 +104,7 @@ func NewConfigForIntegrationTests() *Config {
 		DestructiveIntegrationTest:     true,
 		EmptyTrashAfterIntegrationTest: true,
 		ReplaceExistingDraft:           false,
-		DisableCaching:                 true,
+		EnableCaching:                  true,
 
 		DataFolderName: "data",
 	}
