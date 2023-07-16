@@ -19,4 +19,6 @@ var (
 	ErrCantFindDraftRevision                 = errors.New("can't find a draft revision")
 	ErrWrongUsageOfGetLinkKR                 = errors.New("internal error for GetLinkKR - nil passed in for link")
 	ErrWrongUsageOfGetLink                   = errors.New("internal error for getLink - empty linkID passed in")
+	ErrFileEncryptionReturnDataMissing       = errors.New("internal error for file upload - encRetChan returns nil")
+	ErrFileEncryptionMissingIndex            = errors.New("internal error for file upload - data from encRetChan is missing an index")
 )
