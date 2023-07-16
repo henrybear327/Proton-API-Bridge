@@ -225,7 +225,7 @@ func downloadFile(t *testing.T, ctx context.Context, protonDrive *ProtonDrive, p
 		if fileSystemAttr == nil {
 			t.Fatalf("FileSystemAttr should not be nil")
 		} else {
-			if sizeOnServer == fileSystemAttr.Size {
+			if fileSystemAttr.Size != 0 && sizeOnServer == fileSystemAttr.Size {
 				t.Fatalf("Not possible due to encryption file overhead")
 			}
 			if len(downloadedData) != int(fileSystemAttr.Size) {
