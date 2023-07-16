@@ -5,6 +5,7 @@ import (
 	"log"
 
 	"github.com/henrybear327/Proton-API-Bridge/common"
+	"golang.org/x/sync/semaphore"
 
 	"github.com/ProtonMail/gopenpgp/v2/crypto"
 	"github.com/henrybear327/go-proton-api"
@@ -26,7 +27,9 @@ type ProtonDrive struct {
 	addrData         []proton.Address
 	signatureAddress string
 
-	cache *cache
+	cache                *cache
+	blockUploadSemaphore *semaphore.Weighted
+	blockCryptoSemaphore *semaphore.Weighted
 }
 
 func NewDefaultConfig() *common.Config {
@@ -143,7 +146,9 @@ func NewProtonDrive(ctx context.Context, config *common.Config, authHandler prot
 		addrData:         addrData,
 		signatureAddress: mainShare.Creator,
 
-		cache: newCache(config.EnableCaching),
+		cache:                newCache(config.EnableCaching),
+		blockUploadSemaphore: semaphore.NewWeighted(int64(config.ConcurrentBlockUploadCount)),
+		blockCryptoSemaphore: semaphore.NewWeighted(int64(config.ConcurrentFileCryptoCount)),
 	}, credentials, nil
 }
 

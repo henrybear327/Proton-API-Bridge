@@ -206,10 +206,7 @@ func (protonDrive *ProtonDrive) DownloadFile(ctx context.Context, link *proton.L
 		return nil, 0, nil, err
 	}
 
-	if fileSystemAttrs != nil {
-		return reader, link.Size, fileSystemAttrs, nil
-	}
-	return reader, link.Size, nil, nil
+	return reader, link.Size, fileSystemAttrs, nil
 }
 
 func (reader *FileDownloadReader) downloadFileOnRead() error {
@@ -496,6 +493,14 @@ func (protonDrive *ProtonDrive) uploadAndCollectBlockData(ctx context.Context, n
 
 		errChan := make(chan error)
 		uploadBlockWrapper := func(ctx context.Context, errChan chan error, bareURL, token string, block io.Reader) {
+			// log.Println("Before semaphore")
+			if err := protonDrive.blockUploadSemaphore.Acquire(ctx, 1); err != nil {
+				errChan <- err
+			}
+			defer protonDrive.blockUploadSemaphore.Release(1)
+			// log.Println("After semaphore")
+			// defer log.Println("Release semaphore")
+
 			errChan <- protonDrive.c.UploadBlock(ctx, bareURL, token, block)
 		}
 		for i := range blockUploadResp {

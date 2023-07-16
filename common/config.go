@@ -1,6 +1,10 @@
 package common
 
-import "os"
+import (
+	"log"
+	"os"
+	"runtime"
+)
 
 type Config struct {
 	/* Constants */
@@ -18,6 +22,8 @@ type Config struct {
 	EmptyTrashAfterIntegrationTest bool // CAUTION: the integration test will clean up all the data in the trash
 	ReplaceExistingDraft           bool // for the file upload replace or keep it as-is option
 	EnableCaching                  bool // link node caching
+	ConcurrentBlockUploadCount     int
+	ConcurrentFileCryptoCount      int
 
 	/* Drive */
 	DataFolderName string
@@ -37,6 +43,8 @@ type ReusableCredentialData struct {
 }
 
 func NewConfigWithDefaultValues() *Config {
+	log.Println("Number of CPUs", runtime.GOMAXPROCS(0))
+
 	return &Config{
 		AppVersion: "",
 		UserAgent:  "",
@@ -59,12 +67,16 @@ func NewConfigWithDefaultValues() *Config {
 		EmptyTrashAfterIntegrationTest: false,
 		ReplaceExistingDraft:           false,
 		EnableCaching:                  true,
+		ConcurrentBlockUploadCount:     20, // let's be a nice citizen and not stress out proton engineers :)
+		ConcurrentFileCryptoCount:      runtime.GOMAXPROCS(0),
 
 		DataFolderName: "data",
 	}
 }
 
 func NewConfigForIntegrationTests() *Config {
+	log.Println("Number of CPUs", runtime.GOMAXPROCS(0))
+
 	appVersion := os.Getenv("PROTON_API_BRIDGE_APP_VERSION")
 	userAgent := os.Getenv("PROTON_API_BRIDGE_USER_AGENT")
 
@@ -105,6 +117,8 @@ func NewConfigForIntegrationTests() *Config {
 		EmptyTrashAfterIntegrationTest: true,
 		ReplaceExistingDraft:           false,
 		EnableCaching:                  true,
+		ConcurrentBlockUploadCount:     20,
+		ConcurrentFileCryptoCount:      runtime.GOMAXPROCS(0),
 
 		DataFolderName: "data",
 	}

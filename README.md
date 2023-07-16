@@ -19,11 +19,12 @@ We are using a fork of the [proton-go-api](https://github.com/henrybear327/go-pr
 # Drive APIs
 
 > In collaboration with Azimjon Pulatov, in memory of our good old days at Meta, London, in the summer of 2022.
+>
 > Thanks to Anson Chen for the motivation and some initial help on various matters!
 
 Currently, the development are split into 2 versions. 
 V1 supports the features [required by rclone](https://github.com/henrybear327/rclone/blob/master/fs/types.go), such as `file listing`. As the unit and integration tests from rclone have all been passed, we would stabilize this and then move onto developing V2.
-V2 will bring in optimizations and enhancements, such as optimizing uploading and downloading performance, supporting thumbnails, etc.
+V2 will bring in optimizations and enhancements, esp. supporting thumbnails. Please see the list below.
 
 ## V1
 
@@ -97,11 +98,10 @@ V2 will bring in optimizations and enhancements, such as optimizing uploading an
     - [x] Not found: ERROR RESTY 422: File or folder was not found. (Code=2501, Status=422), Attempt 1
     - [x] Failed upload: Draft already exists on this revision (Code=2500, Status=409)
 - [x] Fix file upload progress -> If the upload failed, please Replace file. If the upload is still in progress, replacing it will cancel the ongoing upload
+- [x] Concurrency control on file encryption, decryption, and block upload
 
 ### Known limitations
 
-- Large file handling: for downloading, the file will be written when all blocks are decrypted and checked
-- Crypto-related operations, e.g. signature verification, still needs to cross check with iOS or web open source codebase 
 - No thumbnails, respecting accepted MIME types, max upload size, can't init Proton Drive, etc.
 - Assumptions
     - only one main share per account
@@ -109,20 +109,22 @@ V2 will bring in optimizations and enhancements, such as optimizing uploading an
 
 ## V2
 
-- [ ] Confirm the HMAC algorithm -> if you create a draft using integration test, and then use the web frontend to finish the upload (you will see overwrite pop-up), and then use the web frontend to upload again the same file, but this time you will have 2 files with duplicated names
-- [ ] Might have missing signature issues on some old accounts, e.g. GetHashKey on rootLink might fail -> currently have a quick patch, but might need to double check the behavior
-- [ ] Mimetype detection by [using the file content itself](github.com/gabriel-vasile/mimetype)
+- [ ] Support thumbnail
+- [ ] Potential bugs
+    - [ ] Confirm the HMAC algorithm -> if you create a draft using integration test, and then use the web frontend to finish the upload (you will see overwrite pop-up), and then use the web frontend to upload again the same file, but this time you will have 2 files with duplicated names
+    - [ ] Might have missing signature issues on some old accounts, e.g. GetHashKey on rootLink might fail -> currently have a quick patch, but might need to double check the behavior
+    - [ ] Double check the attrs field parsing, esp. for size
+    - [ ] Double check the attrs field, esp. for size
+- [ ] Crypto-related operations, e.g. signature verification, still needs to cross check with iOS or web open source codebase 
+- [ ] Mimetype detection by [using the file content itself](github.com/gabriel-vasile/mimetype), or Google content sniffer
 - [ ] Remove e.g. proton.link related exposures in the function signature (this library should abstract them all)
-- [ ] Documentation
-- [ ] Handle failed / interrupted upload -> file the bug report to ProtonMail
+- [ ] Improve documentation
 - [ ] Go through Drive iOS source code and check the logic control flow
-- [ ] Figure out the bottleneck by doing some profiling 
 - [ ] File
     - [ ] Parallel download / upload -> enc/dec is expensive
     - [ ] [Filename encoding](https://github.com/ProtonMail/WebClients/blob/b4eba99d241af4fdae06ff7138bd651a40ef5d3c/applications/drive/src/app/store/_links/validation.ts#L51)
 - [ ] Commit back to proton-go-api and switch to using upstream (make sure the tag is at the tip though)
 - [ ] Support legacy 2-password mode
-- [ ] Support thumbnail
 - [ ] Proton Drive init (no prior Proton Drive login before -> probably will have no key, volume, etc. to start with at all)
 - [ ] linkID caching -> would need to listen to the event api though
 - [ ] Integration tests
