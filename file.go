@@ -494,8 +494,16 @@ func (protonDrive *ProtonDrive) uploadAndCollectBlockData(ctx context.Context, n
 			return err
 		}
 
+		errChan := make(chan error)
+		uploadBlockWrapper := func(ctx context.Context, errChan chan error, bareURL, token string, block io.Reader) {
+			errChan <- protonDrive.c.UploadBlock(ctx, bareURL, token, block)
+		}
 		for i := range blockUploadResp {
-			err := protonDrive.c.UploadBlock(ctx, blockUploadResp[i].BareURL, blockUploadResp[i].Token, bytes.NewReader(pendingUploadBlocks[i].encData))
+			go uploadBlockWrapper(ctx, errChan, blockUploadResp[i].BareURL, blockUploadResp[i].Token, bytes.NewReader(pendingUploadBlocks[i].encData))
+		}
+
+		for i := 0; i < len(blockUploadResp); i++ {
+			err := <-errChan
 			if err != nil {
 				return err
 			}
@@ -508,6 +516,13 @@ func (protonDrive *ProtonDrive) uploadAndCollectBlockData(ctx context.Context, n
 
 	shouldContinue := true
 	for i := 1; shouldContinue; i++ {
+		if (i-1) > 0 && (i-1)%UPLOAD_BATCH_BLOCK_SIZE == 0 {
+			err := uploadPendingBlocks()
+			if err != nil {
+				return nil, 0, err
+			}
+		}
+
 		// read at most data of size UPLOAD_BLOCK_SIZE
 		// for some reason, .Read might not actually read up to buffer size -> use io.ReadFull
 		data := make([]byte, UPLOAD_BLOCK_SIZE) // FIXME: get block size from the server config instead of hardcoding it
@@ -561,13 +576,6 @@ func (protonDrive *ProtonDrive) uploadAndCollectBlockData(ctx context.Context, n
 			},
 			encData: encData,
 		})
-
-		if (i-1) > 0 && (i-1)%UPLOAD_BATCH_BLOCK_SIZE == 0 {
-			err = uploadPendingBlocks()
-			if err != nil {
-				return nil, 0, err
-			}
-		}
 	}
 	err := uploadPendingBlocks()
 	if err != nil {
