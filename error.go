@@ -19,4 +19,5 @@ var (
 	ErrCantFindDraftRevision                 = errors.New("can't find a draft revision")
 	ErrWrongUsageOfGetLinkKR                 = errors.New("internal error for GetLinkKR - nil passed in for link")
 	ErrWrongUsageOfGetLink                   = errors.New("internal error for getLink - empty linkID passed in")
+	ErrSeekOffsetAfterSkippingBlocks         = errors.New("internal error for download seek - the offset after skipping blocks is wrong")
 )

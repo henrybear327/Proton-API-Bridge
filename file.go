@@ -4,9 +4,12 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"io"
+	"log"
 	"mime"
 	"os"
 	"path/filepath"
@@ -20,6 +23,8 @@ import (
 type FileSystemAttrs struct {
 	ModificationTime time.Time
 	Size             int64
+	BlockSizes       []int64
+	Digests          string // sha1 string
 }
 
 type FileDownloadReader struct {
@@ -33,12 +38,18 @@ type FileDownloadReader struct {
 	nextRevision int
 
 	isEOF bool
+
+	// TODO: integrity check if the entire file is read
 }
 
 func (r *FileDownloadReader) Read(p []byte) (int, error) {
 	if r.data.Len() == 0 {
+		// TODO: do we have memory sharing bug?
+		// to avoid sharing the underlying buffer array across re-population
+		r.data = bytes.NewBuffer(nil)
+
 		// we download and decrypt more content
-		err := r.downloadFileOnRead()
+		err := r.populateBufferOnRead()
 		if err != nil {
 			return 0, err
 		}
@@ -58,7 +69,33 @@ func (r *FileDownloadReader) Close() error {
 	return nil
 }
 
-func (protonDrive *ProtonDrive) DownloadFileByID(ctx context.Context, linkID string) (io.ReadCloser, int64, *FileSystemAttrs, error) {
+func (reader *FileDownloadReader) populateBufferOnRead() error {
+	if len(reader.revision.Blocks) == 0 || len(reader.revision.Blocks) == reader.nextRevision {
+		reader.isEOF = true
+		return nil
+	}
+
+	offset := reader.nextRevision
+	for i := offset; i-offset < DOWNLOAD_BATCH_BLOCK_SIZE && i < len(reader.revision.Blocks); i++ {
+		// TODO: parallel download
+		blockReader, err := reader.protonDrive.c.GetBlock(reader.ctx, reader.revision.Blocks[i].BareURL, reader.revision.Blocks[i].Token)
+		if err != nil {
+			return err
+		}
+		defer blockReader.Close()
+
+		err = decryptBlockIntoBuffer(reader.sessionKey, reader.protonDrive.AddrKR, reader.nodeKR, reader.revision.Blocks[i].Hash, reader.revision.Blocks[i].EncSignature, reader.data, blockReader)
+		if err != nil {
+			return err
+		}
+
+		reader.nextRevision = i + 1
+	}
+
+	return nil
+}
+
+func (protonDrive *ProtonDrive) DownloadFileByID(ctx context.Context, linkID string, offset int64) (io.ReadCloser, int64, *FileSystemAttrs, error) {
 	/* It's like event system, we need to get the latest information before creating the move request! */
 	protonDrive.removeLinkIDFromCache(linkID, false)
 
@@ -67,7 +104,7 @@ func (protonDrive *ProtonDrive) DownloadFileByID(ctx context.Context, linkID str
 		return nil, 0, nil, err
 	}
 
-	return protonDrive.DownloadFile(ctx, link)
+	return protonDrive.DownloadFile(ctx, link, offset)
 }
 
 func (protonDrive *ProtonDrive) GetRevisions(ctx context.Context, link *proton.Link, revisionType proton.RevisionState) ([]*proton.RevisionMetadata, error) {
@@ -86,6 +123,15 @@ func (protonDrive *ProtonDrive) GetRevisions(ctx context.Context, link *proton.L
 	}
 
 	return ret, nil
+}
+
+func (protonDrive *ProtonDrive) GetActiveRevisionAttrsByID(ctx context.Context, linkID string) (*FileSystemAttrs, error) {
+	link, err := protonDrive.getLink(ctx, linkID)
+	if err != nil {
+		return nil, err
+	}
+
+	return protonDrive.GetActiveRevisionAttrs(ctx, link)
 }
 
 func (protonDrive *ProtonDrive) GetActiveRevisionAttrs(ctx context.Context, link *proton.Link) (*FileSystemAttrs, error) {
@@ -120,6 +166,8 @@ func (protonDrive *ProtonDrive) GetActiveRevisionAttrs(ctx context.Context, link
 	return &FileSystemAttrs{
 		ModificationTime: modificationTime,
 		Size:             revisionXAttrCommon.Size,
+		BlockSizes:       revisionXAttrCommon.BlockSizes,
+		Digests:          revisionXAttrCommon.Digests,
 	}, nil
 }
 
@@ -160,10 +208,12 @@ func (protonDrive *ProtonDrive) GetActiveRevisionWithAttrs(ctx context.Context, 
 	return &revision, &FileSystemAttrs{
 		ModificationTime: modificationTime,
 		Size:             revisionXAttrCommon.Size,
+		BlockSizes:       revisionXAttrCommon.BlockSizes,
+		Digests:          revisionXAttrCommon.Digests,
 	}, nil
 }
 
-func (protonDrive *ProtonDrive) DownloadFile(ctx context.Context, link *proton.Link) (io.ReadCloser, int64, *FileSystemAttrs, error) {
+func (protonDrive *ProtonDrive) DownloadFile(ctx context.Context, link *proton.Link, offset int64) (io.ReadCloser, int64, *FileSystemAttrs, error) {
 	if link.Type != proton.LinkTypeFile {
 		return nil, 0, nil, ErrLinkTypeMustToBeFileType
 	}
@@ -201,59 +251,67 @@ func (protonDrive *ProtonDrive) DownloadFile(ctx context.Context, link *proton.L
 		isEOF: false,
 	}
 
-	err = reader.downloadFileOnRead()
-	if err != nil {
-		return nil, 0, nil, err
+	useFallbackDownload := false
+	if fileSystemAttrs != nil {
+		// based on offset, infer the nextRevision (0-based)
+		if fileSystemAttrs.BlockSizes == nil {
+			useFallbackDownload = true
+		} else {
+			// infer nextRevision
+			totalBytes := int64(0)
+			for i := 0; i < len(fileSystemAttrs.BlockSizes); i++ {
+				prevTotalBytes := totalBytes
+				totalBytes += fileSystemAttrs.BlockSizes[i]
+				if offset <= totalBytes {
+					offset = offset - prevTotalBytes
+					reader.nextRevision = i
+					break
+				}
+			}
+
+			// download will start from the specified block
+			n, err := io.CopyN(io.Discard, reader, offset)
+			if err != nil {
+				return nil, 0, nil, err
+			}
+			if int64(n) != offset {
+				return nil, 0, nil, ErrSeekOffsetAfterSkippingBlocks
+			}
+		}
 	}
 
+	if useFallbackDownload {
+		log.Println("Performing inefficient seek as metadata of encrypted file is missing")
+		n, err := io.CopyN(io.Discard, reader, offset)
+		if err != nil {
+			return nil, 0, nil, err
+		}
+		if int64(n) != offset {
+			return nil, 0, nil, ErrSeekOffsetAfterSkippingBlocks
+		}
+	}
 	return reader, link.Size, fileSystemAttrs, nil
 }
 
-func (reader *FileDownloadReader) downloadFileOnRead() error {
-	if len(reader.revision.Blocks) == 0 || len(reader.revision.Blocks) == reader.nextRevision {
-		reader.isEOF = true
-		return nil
-	}
-
-	offset := reader.nextRevision
-	for i := offset; i-offset < DOWNLOAD_BATCH_BLOCK_SIZE && i < len(reader.revision.Blocks); i++ {
-		// TODO: parallel download
-		blockReader, err := reader.protonDrive.c.GetBlock(reader.ctx, reader.revision.Blocks[i].BareURL, reader.revision.Blocks[i].Token)
-		if err != nil {
-			return err
-		}
-		defer blockReader.Close()
-
-		err = decryptBlockIntoBuffer(reader.sessionKey, reader.protonDrive.AddrKR, reader.nodeKR, reader.revision.Blocks[i].Hash, reader.revision.Blocks[i].EncSignature, reader.data, blockReader)
-		if err != nil {
-			return err
-		}
-
-		reader.nextRevision = i + 1
-	}
-
-	return nil
-}
-
-func (protonDrive *ProtonDrive) UploadFileByReader(ctx context.Context, parentLinkID string, filename string, modTime time.Time, file io.Reader, testParam int) (string, int64, error) {
+func (protonDrive *ProtonDrive) UploadFileByReader(ctx context.Context, parentLinkID string, filename string, modTime time.Time, file io.Reader, testParam int) (string, *proton.RevisionXAttrCommon, error) {
 	parentLink, err := protonDrive.getLink(ctx, parentLinkID)
 	if err != nil {
-		return "", 0, err
+		return "", nil, err
 	}
 
 	return protonDrive.uploadFile(ctx, parentLink, filename, modTime, file, testParam)
 }
 
-func (protonDrive *ProtonDrive) UploadFileByPath(ctx context.Context, parentLink *proton.Link, filename string, filePath string, testParam int) (string, int64, error) {
+func (protonDrive *ProtonDrive) UploadFileByPath(ctx context.Context, parentLink *proton.Link, filename string, filePath string, testParam int) (string, *proton.RevisionXAttrCommon, error) {
 	f, err := os.Open(filePath)
 	if err != nil {
-		return "", 0, err
+		return "", nil, err
 	}
 	defer f.Close()
 
 	info, err := os.Stat(filePath)
 	if err != nil {
-		return "", 0, err
+		return "", nil, err
 	}
 
 	in := bufio.NewReader(f)
@@ -455,14 +513,14 @@ func (protonDrive *ProtonDrive) createFileUploadDraft(ctx context.Context, paren
 	return linkID, revisionID, newSessionKey, newNodeKR, nil
 }
 
-func (protonDrive *ProtonDrive) uploadAndCollectBlockData(ctx context.Context, newSessionKey *crypto.SessionKey, newNodeKR *crypto.KeyRing, file io.Reader, linkID, revisionID string) ([]byte, int64, error) {
+func (protonDrive *ProtonDrive) uploadAndCollectBlockData(ctx context.Context, newSessionKey *crypto.SessionKey, newNodeKR *crypto.KeyRing, file io.Reader, linkID, revisionID string) ([]byte, int64, []int64, string, error) {
 	type PendingUploadBlocks struct {
 		blockUploadInfo proton.BlockUploadInfo
 		encData         []byte
 	}
 
 	if newSessionKey == nil || newNodeKR == nil {
-		return nil, 0, ErrMissingInputUploadAndCollectBlockData
+		return nil, 0, nil, "", ErrMissingInputUploadAndCollectBlockData
 	}
 
 	totalFileSize := int64(0)
@@ -520,11 +578,13 @@ func (protonDrive *ProtonDrive) uploadAndCollectBlockData(ctx context.Context, n
 	}
 
 	shouldContinue := true
+	sha1Digests := sha1.New()
+	blockSizes := make([]int64, 0)
 	for i := 1; shouldContinue; i++ {
 		if (i-1) > 0 && (i-1)%UPLOAD_BATCH_BLOCK_SIZE == 0 {
 			err := uploadPendingBlocks()
 			if err != nil {
-				return nil, 0, err
+				return nil, 0, nil, "", err
 			}
 		}
 
@@ -541,26 +601,28 @@ func (protonDrive *ProtonDrive) uploadAndCollectBlockData(ctx context.Context, n
 				shouldContinue = false
 			} else {
 				// all other errors
-				return nil, 0, err
+				return nil, 0, nil, "", err
 			}
 		}
 		data = data[:readBytes]
 		totalFileSize += int64(readBytes)
+		sha1Digests.Write(data)
+		blockSizes = append(blockSizes, int64(readBytes))
 
 		// encrypt data
 		dataPlainMessage := crypto.NewPlainMessage(data)
 		encData, err := newSessionKey.Encrypt(dataPlainMessage)
 		if err != nil {
-			return nil, 0, err
+			return nil, 0, nil, "", err
 		}
 
 		encSignature, err := protonDrive.AddrKR.SignDetachedEncrypted(dataPlainMessage, newNodeKR)
 		if err != nil {
-			return nil, 0, err
+			return nil, 0, nil, "", err
 		}
 		encSignatureStr, err := encSignature.GetArmored()
 		if err != nil {
-			return nil, 0, err
+			return nil, 0, nil, "", err
 		}
 
 		h := sha256.New()
@@ -568,7 +630,7 @@ func (protonDrive *ProtonDrive) uploadAndCollectBlockData(ctx context.Context, n
 		hash := h.Sum(nil)
 		base64Hash := base64.StdEncoding.EncodeToString(hash)
 		if err != nil {
-			return nil, 0, err
+			return nil, 0, nil, "", err
 		}
 		manifestSignatureData = append(manifestSignatureData, hash...)
 
@@ -584,13 +646,15 @@ func (protonDrive *ProtonDrive) uploadAndCollectBlockData(ctx context.Context, n
 	}
 	err := uploadPendingBlocks()
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, nil, "", err
 	}
 
-	return manifestSignatureData, totalFileSize, nil
+	sha1Hash := sha1Digests.Sum(nil)
+	sha1String := hex.EncodeToString(sha1Hash)
+	return manifestSignatureData, totalFileSize, blockSizes, sha1String, nil
 }
 
-func (protonDrive *ProtonDrive) commitNewRevision(ctx context.Context, nodeKR *crypto.KeyRing, modificationTime time.Time, size int64, manifestSignatureData []byte, linkID, revisionID string) error {
+func (protonDrive *ProtonDrive) commitNewRevision(ctx context.Context, nodeKR *crypto.KeyRing, xAttrCommon *proton.RevisionXAttrCommon, manifestSignatureData []byte, linkID, revisionID string) error {
 	manifestSignature, err := protonDrive.AddrKR.SignDetached(crypto.NewPlainMessage(manifestSignatureData))
 	if err != nil {
 		return err
@@ -604,7 +668,8 @@ func (protonDrive *ProtonDrive) commitNewRevision(ctx context.Context, nodeKR *c
 		ManifestSignature: manifestSignatureString,
 		SignatureAddress:  protonDrive.signatureAddress,
 	}
-	err = commitRevisionReq.SetEncXAttrString(protonDrive.AddrKR, nodeKR, modificationTime, size)
+
+	err = commitRevisionReq.SetEncXAttrString(protonDrive.AddrKR, nodeKR, xAttrCommon)
 	if err != nil {
 		return err
 	}
@@ -621,7 +686,7 @@ func (protonDrive *ProtonDrive) commitNewRevision(ctx context.Context, nodeKR *c
 // 0 = normal mode
 // 1 = up to create revision
 // 2 = up to block upload
-func (protonDrive *ProtonDrive) uploadFile(ctx context.Context, parentLink *proton.Link, filename string, modTime time.Time, file io.Reader, testParam int) (string, int64, error) {
+func (protonDrive *ProtonDrive) uploadFile(ctx context.Context, parentLink *proton.Link, filename string, modTime time.Time, file io.Reader, testParam int) (string, *proton.RevisionXAttrCommon, error) {
 	// TODO: if we should use github.com/gabriel-vasile/mimetype to detect the MIME type from the file content itself
 	// Note: this approach might cause the upload progress to display the "fake" progress, since we read in all the content all-at-once
 	// mimetype.SetLimit(0)
@@ -638,32 +703,38 @@ func (protonDrive *ProtonDrive) uploadFile(ctx context.Context, parentLink *prot
 	/* step 1: create a draft */
 	linkID, revisionID, newSessionKey, newNodeKR, err := protonDrive.createFileUploadDraft(ctx, parentLink, filename, modTime, mimeType)
 	if err != nil {
-		return "", 0, err
+		return "", nil, err
 	}
 
 	if testParam == 1 {
-		return "", 0, nil
+		return "", nil, nil
 	}
 
 	/* step 2: upload blocks and collect block data */
-	manifestSignature, fileSize, err := protonDrive.uploadAndCollectBlockData(ctx, newSessionKey, newNodeKR, file, linkID, revisionID)
+	manifestSignature, fileSize, blockSizes, digests, err := protonDrive.uploadAndCollectBlockData(ctx, newSessionKey, newNodeKR, file, linkID, revisionID)
 	if err != nil {
-		return "", 0, err
+		return "", nil, err
 	}
 
 	if testParam == 2 {
 		// for integration tests
 		// we try to simulate blocks uploaded but not yet commited
-		return "", 0, nil
+		return "", nil, nil
 	}
 
 	/* step 3: mark the file as active by commiting the revision */
-	err = protonDrive.commitNewRevision(ctx, newNodeKR, modTime, fileSize, manifestSignature, linkID, revisionID)
+	xAttrCommon := &proton.RevisionXAttrCommon{
+		ModificationTime: modTime.Format("2006-01-02T15:04:05-0700"), /* ISO8601 */
+		Size:             fileSize,
+		BlockSizes:       blockSizes,
+		Digests:          digests,
+	}
+	err = protonDrive.commitNewRevision(ctx, newNodeKR, xAttrCommon, manifestSignature, linkID, revisionID)
 	if err != nil {
-		return "", 0, err
+		return "", nil, err
 	}
 
-	return linkID, fileSize, nil
+	return linkID, xAttrCommon, nil
 }
 
 /*

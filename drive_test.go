@@ -406,3 +406,53 @@ func TestUploadLargeNumberOfBlocks(t *testing.T) {
 	deleteBySearchingFromRoot(t, ctx, protonDrive, filename, false, false)
 	checkActiveFileListing(t, ctx, protonDrive, []string{})
 }
+
+func TestFileSeek(t *testing.T) {
+	ctx, cancel, protonDrive := setup(t, false)
+	t.Cleanup(func() {
+		defer cancel()
+		defer tearDown(t, ctx, protonDrive)
+	})
+
+	// in order to simulate seeking over blocks
+	// we use 1KB for the UPLOAD_BLOCK_SIZE
+	ORIGINAL_UPLOAD_BLOCK_SIZE := UPLOAD_BLOCK_SIZE
+	defer func() {
+		UPLOAD_BLOCK_SIZE = ORIGINAL_UPLOAD_BLOCK_SIZE
+	}()
+	blocks := 10
+	UPLOAD_BLOCK_SIZE = 10
+
+	filename := "fileContent.txt"
+	file1Content := RandomString(UPLOAD_BLOCK_SIZE*blocks + 5) // intentionally make the data not aligned to a block
+	file1ContentReader := strings.NewReader(file1Content)
+
+	log.Println("Upload fileContent.txt")
+	uploadFileByReader(t, ctx, protonDrive, "", filename, file1ContentReader, 0)
+	checkRevisions(protonDrive, ctx, t, filename, 1, 1, 0, 0)
+	checkActiveFileListing(t, ctx, protonDrive, []string{"/" + filename})
+
+	{
+		log.Println("Download fileContent.txt with offset 0")
+		downloadFileWithOffset(t, ctx, protonDrive, "", filename, "", file1Content, 0)
+	}
+	{
+		offset := int64(UPLOAD_BLOCK_SIZE)
+		log.Println("Download fileContent.txt with offset", offset)
+		downloadFileWithOffset(t, ctx, protonDrive, "", filename, "", file1Content[offset:], offset)
+	}
+	{
+		offset := int64(UPLOAD_BLOCK_SIZE + 5)
+		log.Println("Download fileContent.txt with offset", offset)
+		downloadFileWithOffset(t, ctx, protonDrive, "", filename, "", file1Content[offset:], offset)
+	}
+	{
+		offset := int64(UPLOAD_BLOCK_SIZE*blocks/2 + 3)
+		log.Println("Download fileContent.txt with offset", offset)
+		downloadFileWithOffset(t, ctx, protonDrive, "", filename, "", file1Content[offset:], offset)
+	}
+
+	log.Println("Delete file fileContent.txt")
+	deleteBySearchingFromRoot(t, ctx, protonDrive, filename, false, false)
+	checkActiveFileListing(t, ctx, protonDrive, []string{})
+}

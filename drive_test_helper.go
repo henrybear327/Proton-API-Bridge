@@ -188,6 +188,10 @@ func uploadFileByFilepath(t *testing.T, ctx context.Context, protonDrive *Proton
 }
 
 func downloadFile(t *testing.T, ctx context.Context, protonDrive *ProtonDrive, parent, name string, filepath string, data string) {
+	downloadFileWithOffset(t, ctx, protonDrive, parent, name, filepath, data, 0)
+}
+
+func downloadFileWithOffset(t *testing.T, ctx context.Context, protonDrive *ProtonDrive, parent, name string, filepath string, data string, offset int64) {
 	parentLink := protonDrive.RootLink
 	if parent != "" {
 		targetFolderLink, err := protonDrive.SearchByNameRecursivelyFromRoot(ctx, parent, true, false)
@@ -211,7 +215,7 @@ func downloadFile(t *testing.T, ctx context.Context, protonDrive *ProtonDrive, p
 	if targetFileLink == nil {
 		t.Fatalf("File %v not found", name)
 	} else {
-		reader, sizeOnServer, fileSystemAttr, err := protonDrive.DownloadFileByID(ctx, targetFileLink.LinkID)
+		reader, sizeOnServer, fileSystemAttr, err := protonDrive.DownloadFileByID(ctx, targetFileLink.LinkID, offset)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -228,7 +232,7 @@ func downloadFile(t *testing.T, ctx context.Context, protonDrive *ProtonDrive, p
 			if fileSystemAttr.Size != 0 && sizeOnServer == fileSystemAttr.Size {
 				t.Fatalf("Not possible due to encryption file overhead")
 			}
-			if len(downloadedData) != int(fileSystemAttr.Size) {
+			if offset == 0 && len(downloadedData) != int(fileSystemAttr.Size) {
 				t.Fatalf("Downloaded file size != uploaded file size: %#v vs %#v", len(downloadedData), int(fileSystemAttr.Size))
 			}
 		}
@@ -238,6 +242,7 @@ func downloadFile(t *testing.T, ctx context.Context, protonDrive *ProtonDrive, p
 			if err != nil {
 				t.Fatal(err)
 			}
+			originalData = originalData[offset:]
 
 			if !bytes.Equal(downloadedData, originalData) {
 				t.Fatalf("Downloaded content is different from the original content")

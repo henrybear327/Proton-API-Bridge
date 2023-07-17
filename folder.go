@@ -106,7 +106,7 @@ func (protonDrive *ProtonDrive) ListDirectoriesRecursively(
 			log.Println("Downloading", currentPath)
 			defer log.Println("Completes downloading", currentPath)
 
-			reader, _, _, err := protonDrive.DownloadFile(ctx, link)
+			reader, _, _, err := protonDrive.DownloadFile(ctx, link, 0)
 			if err != nil {
 				return err
 			}
