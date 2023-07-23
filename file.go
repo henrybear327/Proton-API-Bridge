@@ -242,7 +242,7 @@ func (protonDrive *ProtonDrive) DownloadFile(ctx context.Context, link *proton.L
 		return nil, 0, nil, err
 	}
 
-	sessionKey, err := link.GetSessionKey(protonDrive.AddrKR, nodeKR)
+	sessionKey, err := link.GetSessionKey(nodeKR)
 	if err != nil {
 		return nil, 0, nil, err
 	}
@@ -438,7 +438,7 @@ func (protonDrive *ProtonDrive) createFileUploadDraft(ctx context.Context, paren
 		return "", "", nil, nil, err
 	}
 
-	newSessionKey, err := createFileReq.SetContentKeyPacketAndSignature(newNodeKR, protonDrive.AddrKR)
+	newSessionKey, err := createFileReq.SetContentKeyPacketAndSignature(newNodeKR)
 	if err != nil {
 		return "", "", nil, nil, err
 	}
@@ -516,7 +516,7 @@ func (protonDrive *ProtonDrive) createFileUploadDraft(ctx context.Context, paren
 		if err != nil {
 			return "", "", nil, nil, err
 		}
-		newSessionKey, err = link.GetSessionKey(protonDrive.AddrKR, newNodeKR)
+		newSessionKey, err = link.GetSessionKey(newNodeKR)
 		if err != nil {
 			return "", "", nil, nil, err
 		}

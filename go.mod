@@ -5,7 +5,7 @@ go 1.18
 require (
 	github.com/ProtonMail/gluon v0.17.0
 	github.com/ProtonMail/gopenpgp/v2 v2.7.2
-	github.com/henrybear327/go-proton-api v0.0.0-20230723062344-776bc2954583
+	github.com/henrybear327/go-proton-api v0.0.0-20230723213442-6a56030e2edc
 	github.com/relvacode/iso8601 v1.3.0
 	golang.org/x/sync v0.3.0
 )
