@@ -163,11 +163,18 @@ func (protonDrive *ProtonDrive) GetActiveRevisionAttrs(ctx context.Context, link
 		return nil, err
 	}
 
+	var sha1Hash string
+	if val, ok := revisionXAttrCommon.Digests["SHA1"]; ok {
+		sha1Hash = val
+	} else {
+		sha1Hash = ""
+	}
+
 	return &FileSystemAttrs{
 		ModificationTime: modificationTime,
 		Size:             revisionXAttrCommon.Size,
 		BlockSizes:       revisionXAttrCommon.BlockSizes,
-		Digests:          revisionXAttrCommon.Digests,
+		Digests:          sha1Hash,
 	}, nil
 }
 
@@ -205,11 +212,18 @@ func (protonDrive *ProtonDrive) GetActiveRevisionWithAttrs(ctx context.Context, 
 		return nil, nil, err
 	}
 
+	var sha1Hash string
+	if val, ok := revisionXAttrCommon.Digests["SHA1"]; ok {
+		sha1Hash = val
+	} else {
+		sha1Hash = ""
+	}
+
 	return &revision, &FileSystemAttrs{
 		ModificationTime: modificationTime,
 		Size:             revisionXAttrCommon.Size,
 		BlockSizes:       revisionXAttrCommon.BlockSizes,
-		Digests:          revisionXAttrCommon.Digests,
+		Digests:          sha1Hash,
 	}, nil
 }
 
@@ -727,7 +741,9 @@ func (protonDrive *ProtonDrive) uploadFile(ctx context.Context, parentLink *prot
 		ModificationTime: modTime.Format("2006-01-02T15:04:05-0700"), /* ISO8601 */
 		Size:             fileSize,
 		BlockSizes:       blockSizes,
-		Digests:          digests,
+		Digests: map[string]string{
+			"SHA1": digests,
+		},
 	}
 	err = protonDrive.commitNewRevision(ctx, newNodeKR, xAttrCommon, manifestSignature, linkID, revisionID)
 	if err != nil {

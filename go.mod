@@ -3,15 +3,15 @@ module github.com/henrybear327/Proton-API-Bridge
 go 1.18
 
 require (
+	github.com/ProtonMail/gluon v0.17.0
 	github.com/ProtonMail/gopenpgp/v2 v2.7.2
-	github.com/henrybear327/go-proton-api v0.0.0-20230717103708-031d819d74ab
+	github.com/henrybear327/go-proton-api v0.0.0-20230723062344-776bc2954583
 	github.com/relvacode/iso8601 v1.3.0
 	golang.org/x/sync v0.3.0
 )
 
 require (
 	github.com/ProtonMail/bcrypt v0.0.0-20211005172633-e235017c1baf // indirect
-	github.com/ProtonMail/gluon v0.17.0 // indirect
 	github.com/ProtonMail/go-crypto v0.0.0-20230717121422-5aa5874ade95 // indirect
 	github.com/ProtonMail/go-mime v0.0.0-20230322103455-7d82a3887f2f // indirect
 	github.com/ProtonMail/go-srp v0.0.7 // indirect
