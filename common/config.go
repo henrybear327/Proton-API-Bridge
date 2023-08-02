@@ -24,6 +24,7 @@ type Config struct {
 	EnableCaching                  bool // link node caching
 	ConcurrentBlockUploadCount     int
 	ConcurrentFileCryptoCount      int
+	SkipSignatureVerifications     bool
 
 	/* Drive */
 	DataFolderName string
@@ -69,6 +70,7 @@ func NewConfigWithDefaultValues() *Config {
 		EnableCaching:                  true,
 		ConcurrentBlockUploadCount:     20, // let's be a nice citizen and not stress out proton engineers :)
 		ConcurrentFileCryptoCount:      runtime.GOMAXPROCS(0),
+		SkipSignatureVerifications:     false,
 
 		DataFolderName: "data",
 	}
@@ -119,6 +121,7 @@ func NewConfigForIntegrationTests() *Config {
 		EnableCaching:                  true,
 		ConcurrentBlockUploadCount:     20,
 		ConcurrentFileCryptoCount:      runtime.GOMAXPROCS(0),
+		SkipSignatureVerifications:     false,
 
 		DataFolderName: "data",
 	}
