@@ -73,7 +73,7 @@ func (protonDrive *ProtonDrive) performSearchByNameRecursively(
 		return nil, nil
 	}
 
-	name, err := link.GetName(parentNodeKR, protonDrive.AddrKR)
+	name, err := link.GetName(parentNodeKR, protonDrive.AddrKR, protonDrive.Config.SkipSignatureVerifications)
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +90,7 @@ func (protonDrive *ProtonDrive) performSearchByNameRecursively(
 		// log.Printf("childrenLinks len = %v, %#v", len(childrenLinks), childrenLinks)
 
 		// get current node's keyring
-		linkKR, err := link.GetKeyRing(parentNodeKR, protonDrive.AddrKR)
+		linkKR, err := link.GetKeyRing(parentNodeKR, protonDrive.AddrKR, protonDrive.Config.SkipSignatureVerifications)
 		if err != nil {
 			return nil, err
 		}

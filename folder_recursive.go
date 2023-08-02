@@ -31,7 +31,7 @@ func (protonDrive *ProtonDrive) listDirectoriesRecursively(
 	var currentPath = ""
 
 	if !(excludeRoot && curDepth == 0) {
-		name, err := link.GetName(parentNodeKR, protonDrive.AddrKR)
+		name, err := link.GetName(parentNodeKR, protonDrive.AddrKR, protonDrive.Config.SkipSignatureVerifications)
 		if err != nil {
 			return err
 		}
@@ -88,7 +88,7 @@ func (protonDrive *ProtonDrive) listDirectoriesRecursively(
 
 			if childrenLinks != nil {
 				// get current node's keyring
-				linkKR, err := link.GetKeyRing(parentNodeKR, protonDrive.AddrKR)
+				linkKR, err := link.GetKeyRing(parentNodeKR, protonDrive.AddrKR, protonDrive.Config.SkipSignatureVerifications)
 				if err != nil {
 					return err
 				}

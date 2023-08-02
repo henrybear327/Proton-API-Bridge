@@ -108,12 +108,12 @@ func (protonDrive *ProtonDrive) createFileUploadDraft(ctx context.Context, paren
 		return "", "", nil, nil, err
 	}
 
-	parentHashKey, err := parentLink.GetHashKey(parentNodeKR)
+	parentHashKey, err := parentLink.GetHashKey(parentNodeKR, protonDrive.Config.SkipSignatureVerifications)
 	if err != nil {
 		return "", "", nil, nil, err
 	}
 
-	newNodeKR, err := getKeyRing(parentNodeKR, protonDrive.AddrKR, newNodeKey, newNodePassphraseEnc, newNodePassphraseSignature)
+	newNodeKR, err := getKeyRing(parentNodeKR, protonDrive.AddrKR, newNodeKey, newNodePassphraseEnc, newNodePassphraseSignature, protonDrive.Config.SkipSignatureVerifications)
 	if err != nil {
 		return "", "", nil, nil, err
 	}
@@ -197,7 +197,7 @@ func (protonDrive *ProtonDrive) createFileUploadDraft(ctx context.Context, paren
 		if err != nil {
 			return "", "", nil, nil, err
 		}
-		newNodeKR, err = link.GetKeyRing(parentNodeKR, protonDrive.AddrKR)
+		newNodeKR, err = link.GetKeyRing(parentNodeKR, protonDrive.AddrKR, protonDrive.Config.SkipSignatureVerifications)
 		if err != nil {
 			return "", "", nil, nil, err
 		}

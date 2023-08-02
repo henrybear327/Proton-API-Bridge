@@ -157,7 +157,7 @@ func (protonDrive *ProtonDrive) _getLinkKRByID(ctx context.Context, linkID strin
 /* The original non-caching version, which resolves the keyring recursively */
 func (protonDrive *ProtonDrive) _getLinkKR(ctx context.Context, link *proton.Link) (*crypto.KeyRing, error) {
 	if link.ParentLinkID == "" { // link is rootLink
-		nodeKR, err := link.GetKeyRing(protonDrive.MainShareKR, protonDrive.AddrKR)
+		nodeKR, err := link.GetKeyRing(protonDrive.MainShareKR, protonDrive.AddrKR, protonDrive.Config.SkipSignatureVerifications)
 		if err != nil {
 			return nil, err
 		}
@@ -176,7 +176,7 @@ func (protonDrive *ProtonDrive) _getLinkKR(ctx context.Context, link *proton.Lin
 		return nil, err
 	}
 
-	nodeKR, err := link.GetKeyRing(parentNodeKR, protonDrive.AddrKR)
+	nodeKR, err := link.GetKeyRing(parentNodeKR, protonDrive.AddrKR, protonDrive.Config.SkipSignatureVerifications)
 	if err != nil {
 		return nil, err
 	}
@@ -228,10 +228,11 @@ func (protonDrive *ProtonDrive) getLinkKR(ctx context.Context, link *proton.Link
 			return nil, err
 		}
 
-		kr, err := data.link.GetKeyRing(parentNodeKR, protonDrive.AddrKR)
+		kr, err := data.link.GetKeyRing(parentNodeKR, protonDrive.AddrKR, protonDrive.Config.SkipSignatureVerifications)
 		if err != nil {
 			return nil, err
 		}
+
 		data.kr = kr
 		return data.kr, nil
 	}

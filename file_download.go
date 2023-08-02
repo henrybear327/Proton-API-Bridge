@@ -3,6 +3,8 @@ package proton_api_bridge
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"io"
 	"log"
 
@@ -78,6 +80,46 @@ func (reader *FileDownloadReader) populateBufferOnRead() error {
 	return nil
 }
 
+func decryptBlockIntoBuffer(sessionKey *crypto.SessionKey, addrKR, nodeKR *crypto.KeyRing, originalHash, encSignature string, buffer io.ReaderFrom, block io.ReadCloser) error {
+	data, err := io.ReadAll(block)
+	if err != nil {
+		return err
+	}
+
+	plainMessage, err := sessionKey.Decrypt(data)
+	if err != nil {
+		return err
+	}
+
+	encSignatureArm, err := crypto.NewPGPMessageFromArmored(encSignature)
+	if err != nil {
+		return err
+	}
+
+	err = addrKR.VerifyDetachedEncrypted(plainMessage, encSignatureArm, nodeKR, crypto.GetUnixTime())
+	if err != nil {
+		return err
+	}
+
+	_, err = buffer.ReadFrom(plainMessage.NewReader())
+	if err != nil {
+		return err
+	}
+
+	h := sha256.New()
+	h.Write(data)
+	hash := h.Sum(nil)
+	base64Hash := base64.StdEncoding.EncodeToString(hash)
+	if err != nil {
+		return err
+	}
+	if base64Hash != originalHash {
+		return ErrDownloadedBlockHashVerificationFailed
+	}
+
+	return nil
+}
+
 func (protonDrive *ProtonDrive) DownloadFileByID(ctx context.Context, linkID string, offset int64) (io.ReadCloser, int64, *FileSystemAttrs, error) {
 	/* It's like event system, we need to get the latest information before creating the move request! */
 	protonDrive.removeLinkIDFromCache(linkID, false)
@@ -100,7 +142,7 @@ func (protonDrive *ProtonDrive) DownloadFile(ctx context.Context, link *proton.L
 		return nil, 0, nil, err
 	}
 
-	nodeKR, err := link.GetKeyRing(parentNodeKR, protonDrive.AddrKR)
+	nodeKR, err := link.GetKeyRing(parentNodeKR, protonDrive.AddrKR, protonDrive.Config.SkipSignatureVerifications)
 	if err != nil {
 		return nil, 0, nil, err
 	}

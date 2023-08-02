@@ -51,12 +51,12 @@ func (protonDrive *ProtonDrive) SearchByNameInActiveFolder(
 		return nil, err
 	}
 
-	folderLinkKR, err := folderLink.GetKeyRing(parentNodeKR, protonDrive.AddrKR)
+	folderLinkKR, err := folderLink.GetKeyRing(parentNodeKR, protonDrive.AddrKR, protonDrive.Config.SkipSignatureVerifications)
 	if err != nil {
 		return nil, err
 	}
 
-	folderHashKey, err := folderLink.GetHashKey(folderLinkKR)
+	folderHashKey, err := folderLink.GetHashKey(folderLinkKR, protonDrive.Config.SkipSignatureVerifications)
 	if err != nil {
 		return nil, err
 	}

@@ -124,7 +124,7 @@ func NewProtonDrive(ctx context.Context, config *common.Config, authHandler prot
 	addrKR := addrKRs[mainShare.AddressID]
 	// log.Println("addrKR CountDecryptionEntities", addrKR.CountDecryptionEntities())
 
-	mainShareKR, err := mainShare.GetKeyRing(addrKR)
+	mainShareKR, err := mainShare.GetKeyRing(addrKR, config.SkipSignatureVerifications)
 	if err != nil {
 		return nil, nil, err
 	}

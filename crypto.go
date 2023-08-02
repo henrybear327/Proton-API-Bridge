@@ -1,9 +1,7 @@
 package proton_api_bridge
 
 import (
-	"crypto/sha256"
 	"encoding/base64"
-	"io"
 
 	"github.com/ProtonMail/gopenpgp/v2/crypto"
 	"github.com/ProtonMail/gopenpgp/v2/helper"
@@ -94,7 +92,7 @@ func reencryptKeyPacket(srcKR, dstKR, addrKR *crypto.KeyRing, passphrase string)
 	return newSplitMessage.GetArmored()
 }
 
-func getKeyRing(kr, addrKR *crypto.KeyRing, key, passphrase, passphraseSignature string) (*crypto.KeyRing, error) {
+func getKeyRing(kr, addrKR *crypto.KeyRing, key, passphrase, passphraseSignature string, skipSignatureVerifications bool) (*crypto.KeyRing, error) {
 	enc, err := crypto.NewPGPMessageFromArmored(passphrase)
 	if err != nil {
 		return nil, err
@@ -110,8 +108,10 @@ func getKeyRing(kr, addrKR *crypto.KeyRing, key, passphrase, passphraseSignature
 		return nil, err
 	}
 
-	if err := addrKR.VerifyDetached(dec, sig, crypto.GetUnixTime()); err != nil {
-		return nil, err
+	if !skipSignatureVerifications {
+		if err := addrKR.VerifyDetached(dec, sig, crypto.GetUnixTime()); err != nil {
+			return nil, err
+		}
 	}
 
 	lockedKey, err := crypto.NewKeyFromArmored(key)
@@ -125,44 +125,4 @@ func getKeyRing(kr, addrKR *crypto.KeyRing, key, passphrase, passphraseSignature
 	}
 
 	return crypto.NewKeyRing(unlockedKey)
-}
-
-func decryptBlockIntoBuffer(sessionKey *crypto.SessionKey, addrKR, nodeKR *crypto.KeyRing, originalHash, encSignature string, buffer io.ReaderFrom, block io.ReadCloser) error {
-	data, err := io.ReadAll(block)
-	if err != nil {
-		return err
-	}
-
-	plainMessage, err := sessionKey.Decrypt(data)
-	if err != nil {
-		return err
-	}
-
-	encSignatureArm, err := crypto.NewPGPMessageFromArmored(encSignature)
-	if err != nil {
-		return err
-	}
-
-	err = addrKR.VerifyDetachedEncrypted(plainMessage, encSignatureArm, nodeKR, crypto.GetUnixTime())
-	if err != nil {
-		return err
-	}
-
-	_, err = buffer.ReadFrom(plainMessage.NewReader())
-	if err != nil {
-		return err
-	}
-
-	h := sha256.New()
-	h.Write(data)
-	hash := h.Sum(nil)
-	base64Hash := base64.StdEncoding.EncodeToString(hash)
-	if err != nil {
-		return err
-	}
-	if base64Hash != originalHash {
-		return ErrDownloadedBlockHashVerificationFailed
-	}
-
-	return nil
 }

@@ -34,7 +34,7 @@ func (protonDrive *ProtonDrive) ListDirectory(
 			if err != nil {
 				return nil, err
 			}
-			folderLinkKR, err := folderLink.GetKeyRing(folderParentKR, protonDrive.AddrKR)
+			folderLinkKR, err := folderLink.GetKeyRing(folderParentKR, protonDrive.AddrKR, protonDrive.Config.SkipSignatureVerifications)
 			if err != nil {
 				return nil, err
 			}
@@ -44,7 +44,7 @@ func (protonDrive *ProtonDrive) ListDirectory(
 					continue
 				}
 
-				name, err := childrenLinks[i].GetName(folderLinkKR, protonDrive.AddrKR)
+				name, err := childrenLinks[i].GetName(folderLinkKR, protonDrive.AddrKR, protonDrive.Config.SkipSignatureVerifications)
 				if err != nil {
 					return nil, err
 				}
@@ -104,7 +104,7 @@ func (protonDrive *ProtonDrive) CreateNewFolder(ctx context.Context, parentLink 
 		return "", err
 	}
 
-	parentHashKey, err := parentLink.GetHashKey(parentNodeKR)
+	parentHashKey, err := parentLink.GetHashKey(parentNodeKR, protonDrive.Config.SkipSignatureVerifications)
 	if err != nil {
 		return "", err
 	}
@@ -113,7 +113,7 @@ func (protonDrive *ProtonDrive) CreateNewFolder(ctx context.Context, parentLink 
 		return "", err
 	}
 
-	newNodeKR, err := getKeyRing(parentNodeKR, protonDrive.AddrKR, newNodeKey, newNodePassphraseEnc, newNodePassphraseSignature)
+	newNodeKR, err := getKeyRing(parentNodeKR, protonDrive.AddrKR, newNodeKey, newNodePassphraseEnc, newNodePassphraseSignature, protonDrive.Config.SkipSignatureVerifications)
 	if err != nil {
 		return "", err
 	}
@@ -205,7 +205,7 @@ func (protonDrive *ProtonDrive) moveLink(ctx context.Context, srcLink *proton.Li
 		return err
 	}
 
-	dstParentHashKey, err := dstParentLink.GetHashKey(dstParentKR)
+	dstParentHashKey, err := dstParentLink.GetHashKey(dstParentKR, protonDrive.Config.SkipSignatureVerifications)
 	if err != nil {
 		return err
 	}
