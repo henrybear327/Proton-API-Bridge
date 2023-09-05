@@ -42,6 +42,7 @@ func (protonDrive *ProtonDrive) GetActiveRevisionAttrsByID(ctx context.Context, 
 	return protonDrive.GetActiveRevisionAttrs(ctx, link)
 }
 
+// Might return nil when xattr is missing
 func (protonDrive *ProtonDrive) GetActiveRevisionAttrs(ctx context.Context, link *proton.Link) (*FileSystemAttrs, error) {
 	if link == nil {
 		return nil, ErrLinkMustNotBeNil
@@ -64,6 +65,10 @@ func (protonDrive *ProtonDrive) GetActiveRevisionAttrs(ctx context.Context, link
 	revisionXAttrCommon, err := revisionsMetadata[0].GetDecXAttrString(protonDrive.AddrKR, nodeKR)
 	if err != nil {
 		return nil, err
+	}
+
+	if revisionXAttrCommon == nil {
+		return nil, nil
 	}
 
 	modificationTime, err := iso8601.ParseString(revisionXAttrCommon.ModificationTime)
