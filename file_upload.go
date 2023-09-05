@@ -80,7 +80,11 @@ func (protonDrive *ProtonDrive) createFileUploadDraft(ctx context.Context, paren
 		return "", "", nil, nil, err
 	}
 
-	newNodeKey, newNodePassphraseEnc, newNodePassphraseSignature, err := generateNodeKeys(parentNodeKR, protonDrive.AddrKR)
+	/*
+		Encryption: parent link's node key
+		Signature: share's signature address keys
+	*/
+	newNodeKey, newNodePassphraseEnc, newNodePassphraseSignature, err := generateNodeKeys(parentNodeKR, protonDrive.DefaultAddrKR)
 	if err != nil {
 		return "", "", nil, nil, err
 	}
@@ -102,27 +106,47 @@ func (protonDrive *ProtonDrive) createFileUploadDraft(ctx context.Context, paren
 		SignatureAddress: protonDrive.signatureAddress, // Signature email address used to sign passphrase and name
 	}
 
-	/* Name is encrypted using the parent's keyring, and signed with address key */
-	err = createFileReq.SetName(filename, protonDrive.AddrKR, parentNodeKR)
+	/*
+		Encryption: parent link's node key
+		Signature: share's signature address keys
+	*/
+	err = createFileReq.SetName(filename, protonDrive.DefaultAddrKR, parentNodeKR)
 	if err != nil {
 		return "", "", nil, nil, err
 	}
 
-	parentHashKey, err := parentLink.GetHashKey(parentNodeKR)
+	/*
+		Encryption: parent link's node key
+		Signature: parent link's node key
+	*/
+	signatureVerificationKR, err := protonDrive.getSignatureVerificationKeyring([]string{parentLink.SignatureEmail}, parentNodeKR)
+	if err != nil {
+		return "", "", nil, nil, err
+	}
+	parentHashKey, err := parentLink.GetHashKey(parentNodeKR, signatureVerificationKR)
 	if err != nil {
 		return "", "", nil, nil, err
 	}
 
-	newNodeKR, err := getKeyRing(parentNodeKR, protonDrive.AddrKR, newNodeKey, newNodePassphraseEnc, newNodePassphraseSignature)
-	if err != nil {
-		return "", "", nil, nil, err
-	}
-
+	/* Use parent's hash key */
 	err = createFileReq.SetHash(filename, parentHashKey)
 	if err != nil {
 		return "", "", nil, nil, err
 	}
 
+	/*
+		Encryption: parent link's node key
+		Signature: share's signature address keys
+	*/
+	newNodeKR, err := getKeyRing(parentNodeKR, protonDrive.DefaultAddrKR, newNodeKey, newNodePassphraseEnc, newNodePassphraseSignature)
+	if err != nil {
+		return "", "", nil, nil, err
+	}
+
+	/*
+		Encryption: current link's node key
+		Signature: share's signature address keys
+	*/
 	newSessionKey, err := createFileReq.SetContentKeyPacketAndSignature(newNodeKR)
 	if err != nil {
 		return "", "", nil, nil, err
@@ -192,12 +216,16 @@ func (protonDrive *ProtonDrive) createFileUploadDraft(ctx context.Context, paren
 	if link != nil {
 		linkID = link.LinkID
 
-		// get original newSessionKey and newNodeKR
+		// get original sessionKey and nodeKR for the current link
 		parentNodeKR, err = protonDrive.getLinkKRByID(ctx, link.ParentLinkID)
 		if err != nil {
 			return "", "", nil, nil, err
 		}
-		newNodeKR, err = link.GetKeyRing(parentNodeKR, protonDrive.AddrKR)
+		signatureVerificationKR, err := protonDrive.getSignatureVerificationKeyring([]string{link.SignatureEmail})
+		if err != nil {
+			return "", "", nil, nil, err
+		}
+		newNodeKR, err = link.GetKeyRing(parentNodeKR, signatureVerificationKR)
 		if err != nil {
 			return "", "", nil, nil, err
 		}
@@ -308,14 +336,18 @@ func (protonDrive *ProtonDrive) uploadAndCollectBlockData(ctx context.Context, n
 		sha1Digests.Write(data)
 		blockSizes = append(blockSizes, int64(readBytes))
 
-		// encrypt data
+		// encrypt block data
+		/*
+			Encryption: current link's session key
+			Signature: share's signature address keys
+		*/
 		dataPlainMessage := crypto.NewPlainMessage(data)
 		encData, err := newSessionKey.Encrypt(dataPlainMessage)
 		if err != nil {
 			return nil, 0, nil, "", err
 		}
 
-		encSignature, err := protonDrive.AddrKR.SignDetachedEncrypted(dataPlainMessage, newNodeKR)
+		encSignature, err := protonDrive.DefaultAddrKR.SignDetachedEncrypted(dataPlainMessage, newNodeKR)
 		if err != nil {
 			return nil, 0, nil, "", err
 		}
@@ -354,7 +386,7 @@ func (protonDrive *ProtonDrive) uploadAndCollectBlockData(ctx context.Context, n
 }
 
 func (protonDrive *ProtonDrive) commitNewRevision(ctx context.Context, nodeKR *crypto.KeyRing, xAttrCommon *proton.RevisionXAttrCommon, manifestSignatureData []byte, linkID, revisionID string) error {
-	manifestSignature, err := protonDrive.AddrKR.SignDetached(crypto.NewPlainMessage(manifestSignatureData))
+	manifestSignature, err := protonDrive.DefaultAddrKR.SignDetached(crypto.NewPlainMessage(manifestSignatureData))
 	if err != nil {
 		return err
 	}
@@ -368,7 +400,7 @@ func (protonDrive *ProtonDrive) commitNewRevision(ctx context.Context, nodeKR *c
 		SignatureAddress:  protonDrive.signatureAddress,
 	}
 
-	err = commitRevisionReq.SetEncXAttrString(protonDrive.AddrKR, nodeKR, xAttrCommon)
+	err = commitRevisionReq.SetEncXAttrString(protonDrive.DefaultAddrKR, nodeKR, xAttrCommon)
 	if err != nil {
 		return err
 	}

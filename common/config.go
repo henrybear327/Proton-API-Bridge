@@ -1,7 +1,6 @@
 package common
 
 import (
-	"log"
 	"os"
 	"runtime"
 )
@@ -44,8 +43,6 @@ type ReusableCredentialData struct {
 }
 
 func NewConfigWithDefaultValues() *Config {
-	log.Println("Number of CPUs", runtime.GOMAXPROCS(0))
-
 	return &Config{
 		AppVersion: "",
 		UserAgent:  "",
@@ -77,8 +74,6 @@ func NewConfigWithDefaultValues() *Config {
 }
 
 func NewConfigForIntegrationTests() *Config {
-	log.Println("Number of CPUs", runtime.GOMAXPROCS(0))
-
 	appVersion := os.Getenv("PROTON_API_BRIDGE_APP_VERSION")
 	userAgent := os.Getenv("PROTON_API_BRIDGE_USER_AGENT")
 
