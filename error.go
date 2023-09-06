@@ -14,7 +14,7 @@ var (
 	ErrLinkMustNotBeNil                      = errors.New("missing input proton link")
 	ErrLinkMustBeActive                      = errors.New("can not operate on link state other than active")
 	ErrDownloadedBlockHashVerificationFailed = errors.New("the hash of the downloaded block doesn't match the original hash")
-	ErrDraftExists                           = errors.New("a draft exist - usually this means a file is being uploaded at another client, or, there was a failed upload attempt")
+	ErrDraftExists                           = errors.New("a draft exist - usually this means a file is being uploaded at another client, or, there was a failed upload attempt. Can use --protondrive-replace-existing-draft=true to temporarily override the existing draft")
 	ErrCantFindActiveRevision                = errors.New("can't find an active revision")
 	ErrCantFindDraftRevision                 = errors.New("can't find a draft revision")
 	ErrWrongUsageOfGetLinkKR                 = errors.New("internal error for GetLinkKR - nil passed in for link")
