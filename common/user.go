@@ -106,9 +106,20 @@ func Login(ctx context.Context, config *Config, authHandler proton.AuthHandler, 
 			}
 		}
 
+		var keyPass []byte
+		if auth.PasswordMode == proton.TwoPasswordMode {
+			if config.FirstLoginCredential.MailboxPassword != "" {
+				keyPass = []byte(config.FirstLoginCredential.MailboxPassword)
+			} else {
+				return nil, nil, nil, nil, nil, nil, ErrMailboxPasswordRequired
+			}
+		} else {
+			keyPass = []byte(config.FirstLoginCredential.Password)
+		}
+
 		// decrypt keyring
 		var saltedKeyPassByteArr []byte
-		userKR, addrKRs, addr, saltedKeyPassByteArr, err = getAccountKRs(ctx, c, []byte(password), nil)
+		userKR, addrKRs, addr, saltedKeyPassByteArr, err = getAccountKRs(ctx, c, keyPass, nil)
 		if err != nil {
 			return nil, nil, nil, nil, nil, nil, err
 		}
