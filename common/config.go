@@ -30,9 +30,10 @@ type Config struct {
 }
 
 type FirstLoginCredentialData struct {
-	Username string
-	Password string
-	TwoFA    string
+	Username        string
+	Password        string
+	MailboxPassword string
+	TwoFA           string
 }
 
 type ReusableCredentialData struct {
@@ -50,9 +51,10 @@ func NewConfigWithDefaultValues() *Config {
 		UserAgent:  "",
 
 		FirstLoginCredential: &FirstLoginCredentialData{
-			Username: "",
-			Password: "",
-			TwoFA:    "",
+			Username:        "",
+			Password:        "",
+			MailboxPassword: "",
+			TwoFA:           "",
 		},
 		ReusableCredential: &ReusableCredentialData{
 			UID:           "",
@@ -100,9 +102,10 @@ func NewConfigForIntegrationTests() *Config {
 		UserAgent:  userAgent,
 
 		FirstLoginCredential: &FirstLoginCredentialData{
-			Username: username,
-			Password: password,
-			TwoFA:    twoFA,
+			Username:        username,
+			Password:        password,
+			MailboxPassword: "",
+			TwoFA:           twoFA,
 		},
 		ReusableCredential: &ReusableCredentialData{
 			UID:           uid,

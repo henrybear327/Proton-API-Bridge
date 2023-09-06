@@ -8,4 +8,5 @@ var (
 
 	ErrUsernameAndPasswordRequired = errors.New("username and password are required")
 	Err2FACodeRequired             = errors.New("this account requires a 2FA code")
+	ErrMailboxPasswordRequired     = errors.New("this account requires a mailbox password")
 )
