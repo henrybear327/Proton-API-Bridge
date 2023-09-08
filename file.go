@@ -62,7 +62,11 @@ func (protonDrive *ProtonDrive) GetActiveRevisionAttrs(ctx context.Context, link
 		return nil, err
 	}
 
-	revisionXAttrCommon, err := revisionsMetadata[0].GetDecXAttrString(protonDrive.AddrKR, nodeKR)
+	signatureVerificationKR, err := protonDrive.getSignatureVerificationKeyring([]string{link.FileProperties.ActiveRevision.SignatureEmail})
+	if err != nil {
+		return nil, err
+	}
+	revisionXAttrCommon, err := revisionsMetadata[0].GetDecXAttrString(signatureVerificationKR, nodeKR)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +119,11 @@ func (protonDrive *ProtonDrive) GetActiveRevisionWithAttrs(ctx context.Context, 
 		return nil, nil, err
 	}
 
-	revisionXAttrCommon, err := revision.GetDecXAttrString(protonDrive.AddrKR, nodeKR)
+	signatureVerificationKR, err := protonDrive.getSignatureVerificationKeyring([]string{link.FileProperties.ActiveRevision.SignatureEmail})
+	if err != nil {
+		return nil, nil, err
+	}
+	revisionXAttrCommon, err := revision.GetDecXAttrString(signatureVerificationKR, nodeKR)
 	if err != nil {
 		return nil, nil, err
 	}

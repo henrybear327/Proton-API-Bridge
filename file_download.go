@@ -14,6 +14,7 @@ type FileDownloadReader struct {
 	protonDrive *ProtonDrive
 	ctx         context.Context
 
+	link         *proton.Link
 	data         *bytes.Buffer
 	nodeKR       *crypto.KeyRing
 	sessionKey   *crypto.SessionKey
@@ -67,7 +68,11 @@ func (reader *FileDownloadReader) populateBufferOnRead() error {
 		}
 		defer blockReader.Close()
 
-		err = decryptBlockIntoBuffer(reader.sessionKey, reader.protonDrive.AddrKR, reader.nodeKR, reader.revision.Blocks[i].Hash, reader.revision.Blocks[i].EncSignature, reader.data, blockReader)
+		signatureVerificationKR, err := reader.protonDrive.getSignatureVerificationKeyring([]string{reader.link.SignatureEmail}, reader.nodeKR)
+		if err != nil {
+			return err
+		}
+		err = decryptBlockIntoBuffer(reader.sessionKey, signatureVerificationKR, reader.nodeKR, reader.revision.Blocks[i].Hash, reader.revision.Blocks[i].EncSignature, reader.data, blockReader)
 		if err != nil {
 			return err
 		}
@@ -100,7 +105,11 @@ func (protonDrive *ProtonDrive) DownloadFile(ctx context.Context, link *proton.L
 		return nil, 0, nil, err
 	}
 
-	nodeKR, err := link.GetKeyRing(parentNodeKR, protonDrive.AddrKR)
+	signatureVerificationKR, err := protonDrive.getSignatureVerificationKeyring([]string{link.SignatureEmail})
+	if err != nil {
+		return nil, 0, nil, err
+	}
+	nodeKR, err := link.GetKeyRing(parentNodeKR, signatureVerificationKR)
 	if err != nil {
 		return nil, 0, nil, err
 	}
@@ -119,6 +128,7 @@ func (protonDrive *ProtonDrive) DownloadFile(ctx context.Context, link *proton.L
 		protonDrive: protonDrive,
 		ctx:         ctx,
 
+		link:         link,
 		data:         bytes.NewBuffer(nil),
 		nodeKR:       nodeKR,
 		sessionKey:   sessionKey,

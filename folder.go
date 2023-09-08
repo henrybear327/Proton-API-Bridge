@@ -34,7 +34,11 @@ func (protonDrive *ProtonDrive) ListDirectory(
 			if err != nil {
 				return nil, err
 			}
-			folderLinkKR, err := folderLink.GetKeyRing(folderParentKR, protonDrive.AddrKR)
+			signatureVerificationKR, err := protonDrive.getSignatureVerificationKeyring([]string{folderLink.SignatureEmail})
+			if err != nil {
+				return nil, err
+			}
+			folderLinkKR, err := folderLink.GetKeyRing(folderParentKR, signatureVerificationKR)
 			if err != nil {
 				return nil, err
 			}
@@ -44,7 +48,11 @@ func (protonDrive *ProtonDrive) ListDirectory(
 					continue
 				}
 
-				name, err := childrenLinks[i].GetName(folderLinkKR, protonDrive.AddrKR)
+				signatureVerificationKR, err := protonDrive.getSignatureVerificationKeyring([]string{childrenLinks[i].NameSignatureEmail, childrenLinks[i].SignatureEmail})
+				if err != nil {
+					return nil, err
+				}
+				name, err := childrenLinks[i].GetName(folderLinkKR, signatureVerificationKR)
 				if err != nil {
 					return nil, err
 				}
@@ -78,7 +86,7 @@ func (protonDrive *ProtonDrive) CreateNewFolder(ctx context.Context, parentLink 
 		return "", err
 	}
 
-	newNodeKey, newNodePassphraseEnc, newNodePassphraseSignature, err := generateNodeKeys(parentNodeKR, protonDrive.AddrKR)
+	newNodeKey, newNodePassphraseEnc, newNodePassphraseSignature, err := generateNodeKeys(parentNodeKR, protonDrive.DefaultAddrKR)
 	if err != nil {
 		return "", err
 	}
@@ -99,12 +107,16 @@ func (protonDrive *ProtonDrive) CreateNewFolder(ctx context.Context, parentLink 
 	}
 
 	/* Name is encrypted using the parent's keyring, and signed with address key */
-	err = createFolderReq.SetName(folderName, protonDrive.AddrKR, parentNodeKR)
+	err = createFolderReq.SetName(folderName, protonDrive.DefaultAddrKR, parentNodeKR)
 	if err != nil {
 		return "", err
 	}
 
-	parentHashKey, err := parentLink.GetHashKey(parentNodeKR)
+	signatureVerificationKR, err := protonDrive.getSignatureVerificationKeyring([]string{parentLink.SignatureEmail}, parentNodeKR)
+	if err != nil {
+		return "", err
+	}
+	parentHashKey, err := parentLink.GetHashKey(parentNodeKR, signatureVerificationKR)
 	if err != nil {
 		return "", err
 	}
@@ -113,7 +125,7 @@ func (protonDrive *ProtonDrive) CreateNewFolder(ctx context.Context, parentLink 
 		return "", err
 	}
 
-	newNodeKR, err := getKeyRing(parentNodeKR, protonDrive.AddrKR, newNodeKey, newNodePassphraseEnc, newNodePassphraseSignature)
+	newNodeKR, err := getKeyRing(parentNodeKR, protonDrive.DefaultAddrKR, newNodeKey, newNodePassphraseEnc, newNodePassphraseSignature)
 	if err != nil {
 		return "", err
 	}
@@ -200,12 +212,16 @@ func (protonDrive *ProtonDrive) moveLink(ctx context.Context, srcLink *proton.Li
 		return err
 	}
 
-	err = req.SetName(dstName, protonDrive.AddrKR, dstParentKR)
+	err = req.SetName(dstName, protonDrive.DefaultAddrKR, dstParentKR)
 	if err != nil {
 		return err
 	}
 
-	dstParentHashKey, err := dstParentLink.GetHashKey(dstParentKR)
+	signatureVerificationKR, err := protonDrive.getSignatureVerificationKeyring([]string{dstParentLink.SignatureEmail}, dstParentKR)
+	if err != nil {
+		return err
+	}
+	dstParentHashKey, err := dstParentLink.GetHashKey(dstParentKR, signatureVerificationKR)
 	if err != nil {
 		return err
 	}
@@ -218,7 +234,7 @@ func (protonDrive *ProtonDrive) moveLink(ctx context.Context, srcLink *proton.Li
 	if err != nil {
 		return err
 	}
-	nodePassphrase, err := reencryptKeyPacket(srcParentKR, dstParentKR, protonDrive.AddrKR, srcLink.NodePassphrase)
+	nodePassphrase, err := reencryptKeyPacket(srcParentKR, dstParentKR, protonDrive.DefaultAddrKR, srcLink.NodePassphrase)
 	if err != nil {
 		return err
 	}
