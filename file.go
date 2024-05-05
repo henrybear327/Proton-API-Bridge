@@ -2,6 +2,7 @@ package proton_api_bridge
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/henrybear327/go-proton-api"
@@ -82,7 +83,7 @@ func (protonDrive *ProtonDrive) GetActiveRevisionAttrs(ctx context.Context, link
 
 	var sha1Hash string
 	if val, ok := revisionXAttrCommon.Digests["SHA1"]; ok {
-		sha1Hash = val
+		sha1Hash = strings.ToLower(val) // https://github.com/henrybear327/Proton-API-Bridge/issues/21 and https://github.com/rclone/rclone/issues/7345#issuecomment-1821463100
 	} else {
 		sha1Hash = ""
 	}
