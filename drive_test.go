@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/henrybear327/go-proton-api"
+	"github.com/ProtonMail/go-proton-api"
 )
 
 func TestCreateAndDeleteFolder(t *testing.T) {

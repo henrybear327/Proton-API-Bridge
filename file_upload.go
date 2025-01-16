@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/ProtonMail/gopenpgp/v2/crypto"
-	"github.com/henrybear327/go-proton-api"
+	"github.com/ProtonMail/go-proton-api"
 )
 
 func (protonDrive *ProtonDrive) handleRevisionConflict(ctx context.Context, link *proton.Link, createFileResp *proton.CreateFileRes) (string, bool, error) {

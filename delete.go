@@ -3,7 +3,7 @@ package proton_api_bridge
 import (
 	"context"
 
-	"github.com/henrybear327/go-proton-api"
+	"github.com/ProtonMail/go-proton-api"
 )
 
 func (protonDrive *ProtonDrive) moveToTrash(ctx context.Context, parentLinkID string, linkIDs ...string) error {
