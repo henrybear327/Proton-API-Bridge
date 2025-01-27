@@ -1,7 +1,7 @@
 package common
 
 import (
-	"github.com/henrybear327/go-proton-api"
+	"github.com/ProtonMail/go-proton-api"
 )
 
 func getProtonManager(appVersion string, userAgent string) *proton.Manager {

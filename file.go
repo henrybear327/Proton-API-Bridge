@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/henrybear327/go-proton-api"
+	"github.com/ProtonMail/go-proton-api"
 	"github.com/relvacode/iso8601"
 )
 

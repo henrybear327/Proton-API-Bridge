@@ -8,7 +8,7 @@ import (
 	"os"
 
 	"github.com/ProtonMail/gopenpgp/v2/crypto"
-	"github.com/henrybear327/go-proton-api"
+	"github.com/ProtonMail/go-proton-api"
 )
 
 type ProtonDriveCredential struct {
