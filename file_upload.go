@@ -395,7 +395,7 @@ func (protonDrive *ProtonDrive) commitNewRevision(ctx context.Context, nodeKR *c
 		return err
 	}
 
-	commitRevisionReq := proton.CommitRevisionReq{
+	commitRevisionReq := proton.UpdateRevisionReq{
 		ManifestSignature: manifestSignatureString,
 		SignatureAddress:  protonDrive.signatureAddress,
 	}
@@ -405,7 +405,7 @@ func (protonDrive *ProtonDrive) commitNewRevision(ctx context.Context, nodeKR *c
 		return err
 	}
 
-	err = protonDrive.c.CommitRevision(ctx, protonDrive.MainShare.ShareID, linkID, revisionID, commitRevisionReq)
+	err = protonDrive.c.UpdateRevision(ctx, protonDrive.MainShare.ShareID, linkID, revisionID, commitRevisionReq)
 	if err != nil {
 		return err
 	}
